@@ -63,6 +63,20 @@ The project follows the Standard Go Project Layout:
 - **Dependency Injection:**
     - Inject the `sqlc` generated struct (`*database.Queries`) into your HTTP handlers/services.
 
+## 5. UI/UX Design System
+- **Aesthetic:** Clean & Minimal (Inspired by Vercel/Stripe).
+    - **Typography:** Use `Inter` font. Sans-serif.
+    - **Spacing:** Generous whitespace (`p-6`, `gap-4`, `space-y-6`).
+- **Color Palette (Monochrome & Sharp):**
+    - **Backgrounds:** `bg-gray-50` (Main), `bg-white` (Cards/Nav).
+    - **Text:** `text-gray-900` (Headings), `text-gray-500` (Secondary).
+    - **Borders:** Thin, subtle borders `border-gray-200`.
+    - **Primary Actions:** `bg-black` text `text-white` (Buttons). Hover: `hover:bg-gray-800`.
+- **Components:**
+    - **Cards:** White background, thin border, subtle shadow on hover (`hover:shadow-md`).
+    - **Forms:** Centralized (`max-w-xl mx-auto`), clean input fields with black focus rings (`focus:ring-black`).
+    - **Navigation:** Sticky top, minimal bottom border.
+
 # Implementation Guidelines
 
     ## Workflow & Execution Constraints
