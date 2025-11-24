@@ -12,6 +12,7 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/handlers"
 	appMiddleware "github.com/naozine/project_crud_with_auth_tmpl/internal/middleware"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,6 +20,11 @@ import (
 )
 
 func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found or could not be loaded, using OS environment variables.")
+	}
+
 	// 1. Database Setup (for projects)
 	conn, err := sql.Open("sqlite3", "file:app.db?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on")
 	if err != nil {
@@ -34,6 +40,12 @@ func main() {
 	// 2. MagicLink Setup
 	mlConfig := magiclink.DefaultConfig()
 	mlConfig.DatabasePath = "magiclink.db" // Uses a separate database for magic links
+	mlConfig.DatabaseType = "leveldb"
+	mlConfig.DatabaseOptions = map[string]string{
+		"block_cache_capacity": "33554432", // 32MB
+		"write_buffer":         "16777216", // 16MB
+	}
+
 	mlConfig.ServerAddr = os.Getenv("SERVER_ADDR")
 	if mlConfig.ServerAddr == "" {
 		mlConfig.ServerAddr = "http://localhost:8080"
