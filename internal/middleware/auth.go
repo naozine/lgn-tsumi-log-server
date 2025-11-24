@@ -1,4 +1,4 @@
-package auth
+package middleware
 
 import (
 	"project_crud_with_auth_tmpl/internal/appcontext"

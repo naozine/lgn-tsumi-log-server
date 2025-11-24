@@ -8,9 +8,9 @@ import (
 	"strconv"
 
 	"project_crud_with_auth_tmpl/db"
-	"project_crud_with_auth_tmpl/internal/auth"
 	"project_crud_with_auth_tmpl/internal/database"
 	"project_crud_with_auth_tmpl/internal/handlers"
+	appMiddleware "project_crud_with_auth_tmpl/internal/middleware"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -57,13 +57,13 @@ func main() {
 	// 3. Initialize Handlers
 	queries := database.New(conn)
 	projectHandler := handlers.NewProjectHandler(queries)
-	authHandler := auth.NewAuthHandler(ml)
+	authHandler := handlers.NewAuthHandler(ml)
 
 	// 4. Echo Setup
 	e := echo.New()
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
-	e.Use(auth.UserContextMiddleware(ml)) // Add UserContext middleware globally
+	e.Use(appMiddleware.UserContextMiddleware(ml)) // Add UserContext middleware globally
 
 	e.Static("/static", "web/static")
 
