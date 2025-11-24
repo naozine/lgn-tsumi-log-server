@@ -3,3 +3,4 @@
 
 # templ generated files
 *_templ.go
+/tmp/main
