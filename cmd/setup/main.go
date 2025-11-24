@@ -118,6 +118,34 @@ func main() {
 		fmt.Printf("Found existing: %s\n", bypassFilePath)
 	}
 
+	// Create .env file if it doesn't exist
+	envFilePath := ".env"
+	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
+		content := `# Application Server Address
+SERVER_ADDR="http://localhost:8080"
+
+# SMTP Configuration for Magic Link (Gmail example)
+# Replace with your actual SMTP server details
+# SMTP_HOST="smtp.gmail.com"
+# SMTP_PORT="587"
+# SMTP_USERNAME="your-email@gmail.com"
+# SMTP_PASSWORD="your-app-password"
+# SMTP_FROM="your-email@gmail.com"
+# SMTP_FROM_NAME="Your App Name"
+
+# Optional: Development bypass emails for magic link testing (e.g. test@example.com)
+# DEV_BYPASS_EMAILS_FILE=".bypass_emails"
+`
+		err = os.WriteFile(envFilePath, []byte(content), 0644)
+		if err != nil {
+			fmt.Printf("Warning: Failed to create %s: %v\n", envFilePath, err)
+		} else {
+			fmt.Printf("Created: %s\n", envFilePath)
+		}
+	} else {
+		fmt.Printf("Found existing: %s\n", envFilePath)
+	}
+
 	fmt.Println("\n✅ Setup complete!")
 	fmt.Println("Next steps:")
 	fmt.Println("  1. go run github.com/a-h/templ/cmd/templ@latest generate")
