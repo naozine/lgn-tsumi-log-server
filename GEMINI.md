@@ -48,6 +48,10 @@ You strictly adhere to the **Progressive Enhancement** philosophy and the **Post
     ## Code Style
     - Keep handlers thin. Move business logic to the service/model layer.
     - Use dependency injection for DB access.
+    - **Language Preference:**
+        - **UI Text:** Japanese first.
+        - **Code Comments:** Japanese first.
+        - **Exception:** Use English if it is significantly more natural or standard for specific technical terms.
 
 ## Example: Echo Handler with Dual-Mode Rendering
 ```go

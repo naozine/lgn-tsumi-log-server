@@ -27,39 +27,58 @@ func main() {
 }
 
 func helloWorldHandler(c echo.Context) error {
-	// If request is from htmx, render only the component.
+
+	// リクエストがhtmxからの場合、コンポーネントのみをレンダリングする。
+
 	if c.Request().Header.Get("HX-Request") == "true" {
+
 		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
+
 		return components.HelloWorld().Render(c.Request().Context(), c.Response().Writer)
+
 	}
 
-	// Otherwise, render full layout
+	// それ以外の場合、完全なレイアウトをレンダリングする
+
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
-	// For Hello World, we can use a simpler layout or just the component if no layout exists for it specifically
-	// But assuming we want consistency, we might wrap it too, but for now keeping as is or wrapping in base.
-	// Let's wrap it in Base for consistency.
+
+	// Hello World用には、一貫性のためにBaseレイアウトでラップする。
+
 	return layouts.Base("Hello", components.HelloWorld()).Render(c.Request().Context(), c.Response().Writer)
+
 }
 
 func listProjectsHandler(c echo.Context) error {
-	// Mock Data
+
+	// モックデータ
+
 	projects := []models.Project{
-		{ID: 1, Name: "Project Alpha", Description: "The first project", Status: "Active"},
-		{ID: 2, Name: "Project Beta", Description: "The second project", Status: "Pending"},
-		{ID: 3, Name: "Project Gamma", Description: "The third project", Status: "Completed"},
+
+		{ID: 1, Name: "プロジェクト Alpha", Description: "最初のプロジェクトです", Status: "進行中"},
+
+		{ID: 2, Name: "プロジェクト Beta", Description: "2番目のプロジェクトです", Status: "保留中"},
+
+		{ID: 3, Name: "プロジェクト Gamma", Description: "3番目のプロジェクトです", Status: "完了"},
 	}
 
-	// 1. Prepare Component
+	// 1. コンポーネントの準備
+
 	content := components.ProjectList(projects)
 
-	// 2. Dual-Mode Rendering
+	// 2. デュアルモードレンダリング
+
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 
 	if c.Request().Header.Get("HX-Request") == "true" {
-		// Render only the list component (fragment)
+
+		// リストコンポーネント（フラグメント）のみをレンダリング
+
 		return content.Render(c.Request().Context(), c.Response().Writer)
+
 	}
 
-	// Render full layout wrapping the component
-	return layouts.Base("Projects", content).Render(c.Request().Context(), c.Response().Writer)
+	// コンポーネントをラップした完全なレイアウトをレンダリング
+
+	return layouts.Base("プロジェクト一覧", content).Render(c.Request().Context(), c.Response().Writer)
+
 }
