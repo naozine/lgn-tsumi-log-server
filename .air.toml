@@ -8,7 +8,7 @@ tmp_dir = "tmp"
 [build]
   # Just plain old shell command. You could use `make` as well.
   # Run templ generate before building the application
-  cmd = "templ generate && go build -o ./tmp/main ."
+  cmd = "templ generate && go build -o ./tmp/main ./cmd/server"
   
   # Binary file yields from `cmd`.
   bin = "./tmp/main"

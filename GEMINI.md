@@ -11,6 +11,18 @@ You strictly adhere to the **Progressive Enhancement** philosophy, the **Post-Re
 - **Data Access:** sqlc (Type-safe SQL generator) - **NO ORMs** (e.g., GORM is prohibited).
 - **Data Binding:** Echo's `c.Bind()` or `go-playground/form`
 
+# Project Structure
+The project follows the Standard Go Project Layout:
+- `cmd/server/`: Application entry point (main.go).
+- `internal/`: Private application code.
+    - `database/`: sqlc-generated code and database connection logic.
+    - `handlers/`: HTTP request handlers.
+- `web/`: Frontend assets and templates.
+    - `components/`: Reusable templ components.
+    - `layouts/`: Page layouts (templ).
+    - `static/`: Static files (CSS, JS, images).
+- `db/`: SQL migrations and queries.
+
 # Architectural Principles (STRICTLY FOLLOW)
 
 ## 1. Core Structure: PRG & Page-Based Routing

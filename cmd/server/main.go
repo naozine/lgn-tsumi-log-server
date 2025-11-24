@@ -2,36 +2,33 @@ package main
 
 import (
 	"database/sql"
-	"embed"
 	"log"
 	"net/http"
 
-	"project_crud_with_auth_tmpl/database"
-	"project_crud_with_auth_tmpl/handlers"
+	"project_crud_with_auth_tmpl/db"
+	"project_crud_with_auth_tmpl/internal/database"
+	"project_crud_with_auth_tmpl/internal/handlers"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-//go:embed db/schema.sql
-var schemaFS embed.FS
-
 func main() {
 	// 1. Database Setup
-	db, err := sql.Open("sqlite3", "file:app.db?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on")
+	conn, err := sql.Open("sqlite3", "file:app.db?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer conn.Close()
 
 	// Simple Migration
-	if err := applySchema(db); err != nil {
+	if err := applySchema(conn); err != nil {
 		log.Fatal(err)
 	}
 
 	// 2. Initialize Handlers
-	queries := database.New(db)
+	queries := database.New(conn)
 	projectHandler := handlers.NewProjectHandler(queries)
 
 	// 3. Echo Setup
@@ -51,11 +48,11 @@ func main() {
 	log.Fatal(e.Start(":8080"))
 }
 
-func applySchema(db *sql.DB) error {
-	schema, err := schemaFS.ReadFile("db/schema.sql")
+func applySchema(conn *sql.DB) error {
+	schema, err := db.SchemaFS.ReadFile("schema.sql")
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(string(schema))
+	_, err = conn.Exec(string(schema))
 	return err
 }

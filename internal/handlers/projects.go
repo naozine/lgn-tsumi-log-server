@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"project_crud_with_auth_tmpl/components"
-	"project_crud_with_auth_tmpl/database"
-	"project_crud_with_auth_tmpl/layouts"
+	"project_crud_with_auth_tmpl/internal/database"
+	"project_crud_with_auth_tmpl/web/components"
+	"project_crud_with_auth_tmpl/web/layouts"
 
 	"github.com/labstack/echo/v4"
 )
