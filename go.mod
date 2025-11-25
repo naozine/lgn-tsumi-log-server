@@ -7,7 +7,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/naozine/nz-magic-link v0.1.7
+	github.com/naozine/nz-magic-link v0.1.8
 )
 
 require (
