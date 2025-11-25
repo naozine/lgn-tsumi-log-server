@@ -41,10 +41,10 @@ go mod tidy
    cd my-new-app
    ```
 
-2. **Run the setup tool:**
+2. **Run the initialization tool:**
    This tool will rename the module and cleanup example files.
    ```bash
-   go run cmd/setup/main.go
+   go run cmd/init/main.go
    ```
 
 3. **Install dependencies & Generate code:**
@@ -53,11 +53,16 @@ go mod tidy
    go run github.com/a-h/templ/cmd/templ@latest generate
    ```
 
-4. **Run the application:**
+4. **Setup the database and create admin user:**
+   ```bash
+   go run cmd/setup/main.go -email admin@example.com -name "Admin User"
+   ```
+
+5. **Run the application:**
    ```bash
    # Development (with Air)
    air
-   
+
    # Or standard build
    go build -o app cmd/server/main.go
    ./app
@@ -69,7 +74,8 @@ go mod tidy
 .
 ├── cmd/
 │   ├── server/       # Application entry point
-│   └── setup/        # Project initialization tool
+│   ├── init/         # Template initialization (module rename, cleanup)
+│   └── setup/        # Database setup and admin user creation
 ├── internal/
 │   ├── appcontext/   # Context helpers
 │   ├── database/     # sqlc generated code
