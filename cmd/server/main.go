@@ -116,6 +116,7 @@ func main() {
 	projectHandler := handlers.NewProjectHandler(queries)
 	authHandler := handlers.NewAuthHandler(ml)
 	adminHandler := handlers.NewAdminHandler(queries)
+	profileHandler := handlers.NewProfileHandler(queries, ml)
 
 	// 4. Echo Setup
 	e := echo.New()
@@ -160,6 +161,10 @@ func main() {
 	adminGroup.GET("/users/:id/edit", adminHandler.EditUserPage)
 	adminGroup.POST("/users/:id", adminHandler.UpdateUser)
 	adminGroup.DELETE("/users/:id", adminHandler.DeleteUser)
+
+	// Profile Routes
+	e.GET("/profile", profileHandler.ShowProfile, ml.AuthMiddleware())
+	e.POST("/profile", profileHandler.UpdateProfile, ml.AuthMiddleware())
 
 	// Start server
 	log.Fatal(e.Start(":8080"))
