@@ -157,6 +157,9 @@ func main() {
 	adminGroup.GET("/users", adminHandler.ListUsers)
 	adminGroup.GET("/users/new", adminHandler.NewUserPage)
 	adminGroup.POST("/users", adminHandler.CreateUser)
+	adminGroup.GET("/users/:id/edit", adminHandler.EditUserPage)
+	adminGroup.POST("/users/:id", adminHandler.UpdateUser)
+	adminGroup.DELETE("/users/:id", adminHandler.DeleteUser)
 
 	// Start server
 	log.Fatal(e.Start(":8080"))
