@@ -12,9 +12,17 @@ func UserContextMiddleware(ml *magiclink.MagicLink) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			userEmail, isLoggedIn := ml.GetUserID(c)
 
+			var hasPasskey bool
+			if isLoggedIn {
+				creds, err := ml.DB.GetPasskeyCredentialsByUserID(userEmail)
+				if err == nil && len(creds) > 0 {
+					hasPasskey = true
+				}
+			}
+
 			// Set user info to request context
 			ctx := c.Request().Context()
-			ctx = appcontext.WithUser(ctx, userEmail, isLoggedIn)
+			ctx = appcontext.WithUser(ctx, userEmail, isLoggedIn, hasPasskey)
 			c.SetRequest(c.Request().WithContext(ctx))
 
 			return next(c)
