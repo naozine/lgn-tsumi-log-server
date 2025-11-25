@@ -42,15 +42,17 @@ go mod tidy
    ```
 
 2. **Run the initialization tool:**
-   This tool will rename the module and cleanup example files.
    ```bash
-   go run cmd/init/main.go
+   go run ./cmd/init
    ```
+
+   This tool uses `go.mod`'s `replace` directive to map the template's import paths to your project.
+   Your code keeps the original import paths, making it easy to merge updates from the template.
 
 3. **Install dependencies & Generate code:**
    ```bash
-   go mod tidy
    go run github.com/a-h/templ/cmd/templ@latest generate
+   go mod tidy
    ```
 
 4. **Setup the database and create admin user:**
@@ -74,7 +76,8 @@ go mod tidy
 .
 ├── cmd/
 │   ├── server/       # Application entry point
-│   ├── init/         # Template initialization (module rename, cleanup)
+│   ├── init/         # Template initialization (replace directive, easy to merge)
+│   ├── eject/        # Convert to standalone project (full module rename)
 │   └── setup/        # Database setup and admin user creation
 ├── internal/
 │   ├── appcontext/   # Context helpers
@@ -88,6 +91,30 @@ go mod tidy
 ├── db/               # SQL migrations and queries
 └── sqlc.yaml         # sqlc configuration
 ```
+
+## Merging Template Updates
+
+If you initialized with `cmd/init` (replace directive), you can easily merge updates from the template:
+
+```bash
+git remote add template https://github.com/naozine/project_crud_with_auth_tmpl.git
+git fetch template
+git merge template/main --allow-unrelated-histories
+```
+
+## Ejecting (Full Independence)
+
+When your project matures and you no longer need template updates, you can fully detach:
+
+```bash
+go run ./cmd/eject
+```
+
+This will:
+- Replace all import paths with your module name
+- Remove the `replace` directive from `go.mod`
+
+**Note:** After ejecting, merging template updates becomes difficult due to import path conflicts.
 
 ## License
 
