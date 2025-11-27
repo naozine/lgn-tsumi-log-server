@@ -47,9 +47,14 @@ func main() {
 	if mlConfig.ServerAddr == "" {
 		mlConfig.ServerAddr = "http://localhost:8080"
 	}
-	mlConfig.DevBypassEmailFilePath = ".bypass_emails" // For development: return magic link in response
-	mlConfig.RedirectURL = "/projects"                 // Redirect to projects list after login
-	mlConfig.ErrorRedirectURL = "/auth/login"          // Redirect to login page on error
+
+	// Only use bypass file if it exists (mainly for local development)
+	if _, err := os.Stat(".bypass_emails"); err == nil {
+		mlConfig.DevBypassEmailFilePath = ".bypass_emails"
+	}
+
+	mlConfig.RedirectURL = "/projects"        // Redirect to projects list after login
+	mlConfig.ErrorRedirectURL = "/auth/login" // Redirect to login page on error
 	mlConfig.LoginSuccessMessage = "ログイン用のメールを送信しました"
 
 	// AllowLogin callback to check against users table
