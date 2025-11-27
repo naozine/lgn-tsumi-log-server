@@ -1,4 +1,5 @@
--- +goose Up\nCREATE TABLE IF NOT EXISTS projects (
+-- +goose Up
+CREATE TABLE IF NOT EXISTS projects (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -14,4 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);\n\n-- +goose Down\nDROP TABLE users;\nDROP TABLE projects;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- +goose Down
+DROP TABLE users;
+DROP TABLE projects;
