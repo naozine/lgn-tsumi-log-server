@@ -1,7 +1,11 @@
 version: "2"
 sql:
-  - schema: "db/schema.sql"
-    queries: "db/query.sql"
+  - schema: 
+      - "db/schema.sql"
+      - "db/schema_logistics.sql"
+    queries: 
+      - "db/query.sql"
+      - "db/query_logistics.sql"
     engine: "sqlite"
     gen:
       go:
