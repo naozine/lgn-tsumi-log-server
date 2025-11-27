@@ -16,8 +16,8 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/naozine/nz-magic-link/magiclink"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 	}
 
 	// 1. Database Setup (for projects)
-	conn, err := sql.Open("sqlite3", "file:app.db?_busy_timeout=5000&_journal_mode=WAL&_foreign_keys=on")
+	conn, err := sql.Open("sqlite", "file:app.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(on)")
 	if err != nil {
 		log.Fatal("Failed to connect to app.db:", err)
 	}
