@@ -84,6 +84,12 @@ sync:
 		--exclude 'deploy.config' \
 		./ $(VPS_USER)@$(VPS_HOST):$(VPS_DIR)
 
+# Utility: Create New Migration
+# Usage: make migrate-new NAME=add_users_table
+migrate-new:
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-new NAME=description"; exit 1; fi
+	go run github.com/pressly/goose/v3/cmd/goose -dir db/migrations create $(NAME) sql
+
 # Utility: Restart Service
 restart:
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "systemctl --user restart $(SERVICE_NAME)"

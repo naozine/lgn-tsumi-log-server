@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/naozine/nz-magic-link/magiclink"
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -34,9 +35,15 @@ func main() {
 	}
 	defer conn.Close()
 
-	// Simple Migration
-	if err := applySchema(conn); err != nil {
-		log.Fatal("Failed to apply app schema:", err)
+	// Run Migrations (using goose)
+	goose.SetBaseFS(db.MigrationsFS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		log.Fatal("Failed to set goose dialect:", err)
+	}
+	// "migrations" is the directory name inside embed.FS (db/migrations)
+	// Since db.MigrationsFS is rooted at "db", the path is just "migrations"
+	if err := goose.Up(conn, "migrations"); err != nil {
+		log.Fatal("Failed to apply migrations:", err)
 	}
 
 	// Initialize Admin User if needed
@@ -184,15 +191,6 @@ func main() {
 		port = "8080"
 	}
 	log.Fatal(e.Start(":" + port))
-}
-
-func applySchema(conn *sql.DB) error {
-	schema, err := db.SchemaFS.ReadFile("schema.sql")
-	if err != nil {
-		return err
-	}
-	_, err = conn.Exec(string(schema))
-	return err
 }
 
 func mustAtoi(s string, defaultValue int) int {
