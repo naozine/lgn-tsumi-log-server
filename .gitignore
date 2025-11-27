@@ -1,0 +1,16 @@
+/.idea
+/project_crud_with_auth_tmpl
+
+# templ generated files
+*_templ.go
+/tmp/main
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+/app
+.bypass_emails
+/tmp/build-errors.log
+/.env
+deploy.config
