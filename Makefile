@@ -20,14 +20,8 @@ APP_PORT     ?= 8080
 ADMIN_EMAIL  ?=
 ADMIN_NAME   ?= Admin
 
-# Server & SMTP Configuration (deploy.config で設定)
+# Server Configuration (deploy.config で設定)
 SERVER_ADDR    ?= http://localhost:8080
-SMTP_HOST      ?=
-SMTP_PORT      ?= 587
-SMTP_USERNAME  ?=
-SMTP_PASSWORD  ?=
-SMTP_FROM      ?=
-SMTP_FROM_NAME ?=
 
 # -----------------------------------------------------------------------------
 # Targets
@@ -57,12 +51,6 @@ deploy: build-linux
 	Environment=\"ADMIN_EMAIL=$(ADMIN_EMAIL)\"\n\
 	Environment=\"ADMIN_NAME=$(ADMIN_NAME)\"\n\
 	Environment=\"SERVER_ADDR=$(SERVER_ADDR)\"\n\
-	Environment=\"SMTP_HOST=$(SMTP_HOST)\"\n\
-	Environment=\"SMTP_PORT=$(SMTP_PORT)\"\n\
-	Environment=\"SMTP_USERNAME=$(SMTP_USERNAME)\"\n\
-	Environment=\"SMTP_PASSWORD=$(SMTP_PASSWORD)\"\n\
-	Environment=\"SMTP_FROM=$(SMTP_FROM)\"\n\
-	Environment=\"SMTP_FROM_NAME=$(SMTP_FROM_NAME)\"\n\
 	Restart=always\nRestartSec=5\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=default.target" > $(BINARY_NAME).service
 
 	# 3. バイナリとサービスファイルを転送
