@@ -141,6 +141,7 @@ func main() {
 
 	// 4. Echo Setup
 	e := echo.New()
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler // カスタムエラーハンドラ
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(appMiddleware.UserContextMiddleware(ml, conn)) // Add UserContext middleware globally
@@ -165,7 +166,7 @@ func main() {
 
 	// Admin Routes
 	adminGroup := e.Group("/admin")
-	adminGroup.Use(ml.AuthMiddleware()) // Require login
+	adminGroup.Use(appMiddleware.RequireAuth(ml, "/auth/login")) // 未認証時はログインページへリダイレクト
 	// In a real app, we'd add a RequireRole("admin") middleware here too,
 	// but the handler checks it internally for now.
 
@@ -177,9 +178,9 @@ func main() {
 	adminGroup.DELETE("/users/:id", adminHandler.DeleteUser)
 
 	// Profile Routes
-	e.GET("/profile", profileHandler.ShowProfile, ml.AuthMiddleware())
-	e.POST("/profile", profileHandler.UpdateProfile, ml.AuthMiddleware())
-	e.DELETE("/profile/passkeys", profileHandler.DeletePasskeys, ml.AuthMiddleware())
+	e.GET("/profile", profileHandler.ShowProfile, appMiddleware.RequireAuth(ml, "/auth/login"))
+	e.POST("/profile", profileHandler.UpdateProfile, appMiddleware.RequireAuth(ml, "/auth/login"))
+	e.DELETE("/profile/passkeys", profileHandler.DeletePasskeys, appMiddleware.RequireAuth(ml, "/auth/login"))
 
 	// Start server
 	port := os.Getenv("PORT")
