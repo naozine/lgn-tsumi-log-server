@@ -1,19 +1,28 @@
--- name: UpsertProjectLogisticsSettings :one
-INSERT INTO project_logistics_settings (
-    project_id, csv_filename, csv_imported_at, csv_row_count, arrival_threshold_meters, updated_at
-) VALUES (
-    ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-)
-ON CONFLICT(project_id) DO UPDATE SET
-    csv_filename = excluded.csv_filename,
-    csv_imported_at = excluded.csv_imported_at,
-    csv_row_count = excluded.csv_row_count,
-    arrival_threshold_meters = excluded.arrival_threshold_meters,
-    updated_at = CURRENT_TIMESTAMP
+-- name: ListLogisticsProjects :many
+SELECT * FROM logistics_projects ORDER BY created_at DESC;
+
+-- name: CreateLogisticsProject :one
+INSERT INTO logistics_projects (name, arrival_threshold_meters)
+VALUES (?, ?)
 RETURNING *;
 
--- name: GetProjectLogisticsSettings :one
-SELECT * FROM project_logistics_settings WHERE project_id = ? LIMIT 1;
+-- name: GetLogisticsProject :one
+SELECT * FROM logistics_projects WHERE id = ? LIMIT 1;
+
+-- name: UpdateLogisticsProject :one
+UPDATE logistics_projects
+SET name = ?, arrival_threshold_meters = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+
+-- name: DeleteLogisticsProject :exec
+DELETE FROM logistics_projects WHERE id = ?;
+
+-- name: UpdateLogisticsProjectCSV :one
+UPDATE logistics_projects
+SET csv_filename = ?, csv_imported_at = ?, csv_row_count = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
 
 -- name: CreateRouteStop :exec
 INSERT INTO route_stops (

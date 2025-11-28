@@ -1,0 +1,83 @@
+package components
+
+import (
+    "fmt"
+    "github.com/naozine/project_crud_with_auth_tmpl/internal/database"
+    "github.com/naozine/project_crud_with_auth_tmpl/internal/appcontext"
+)
+
+templ LogisticsProjectDetail(lp database.LogisticsProject) {
+    {{
+        userRole := appcontext.GetUserRole(ctx)
+    }}
+    <div class="max-w-3xl mx-auto">
+        <div class="mb-8 flex items-center justify-between">
+            <div>
+                <h2 class="text-2xl font-bold tracking-tight text-gray-900">{ lp.Name }</h2>
+                <p class="mt-1 text-sm text-gray-500">ID: { fmt.Sprintf("%d", lp.ID) } • 作成日: { lp.CreatedAt.Time.Format("2006/01/02 15:04") }</p>
+            </div>
+            if userRole == "admin" || userRole == "editor" {
+                <div class="flex space-x-3">
+                    <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d/edit", lp.ID)) } class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2">
+                        編集
+                    </a>
+                    <form action={ templ.URL(fmt.Sprintf("/logistics/projects/%d/delete", lp.ID)) } method="POST" onsubmit="return confirm('本当に削除しますか？');">
+                        <button type="submit" class="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                            削除
+                        </button>
+                    </form>
+                </div>
+            }
+        </div>
+
+        <div class="bg-white shadow sm:rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <h3 class="text-base font-semibold leading-6 text-gray-900">案件設定</h3>
+                <div class="mt-2 text-sm text-gray-500">
+                    <p>到着判定距離: { fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) } m</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-white shadow sm:rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-semibold leading-6 text-gray-900">配送ルート</h3>
+                    if userRole == "admin" || userRole == "editor" {
+                        <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses/upload", lp.ID)) }
+                           class="inline-flex items-center rounded-md bg-black px-3 py-2 text-sm text-white hover:bg-gray-800 transition-colors">
+                            CSVをアップロード
+                        </a>
+                    }
+                </div>
+
+                if lp.CsvFilename.Valid {
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                        <div class="flex items-center">
+                            <span class="text-2xl mr-3">📄</span>
+                            <div class="flex-1">
+                                <h4 class="text-sm font-medium text-gray-900">{ lp.CsvFilename.String }</h4>
+                                <p class="text-xs text-gray-500 mt-1">
+                                    { lp.CsvImportedAt.Time.Format("2006/01/02 15:04") } インポート •
+                                    { fmt.Sprintf("%d", lp.CsvRowCount.Int64) } 件
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses", lp.ID)) }
+                       class="inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-900">
+                        コース一覧を見る →
+                    </a>
+                } else {
+                    <p class="text-sm text-gray-500">まだ配送ルートがアップロードされていません。</p>
+                }
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <a href="/logistics/projects" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+                ← 一覧に戻る
+            </a>
+        </div>
+    </div>
+}

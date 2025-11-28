@@ -1,0 +1,176 @@
+package components
+
+import (
+    "fmt"
+    "time"
+    "github.com/naozine/project_crud_with_auth_tmpl/internal/database"
+    "github.com/naozine/project_crud_with_auth_tmpl/internal/status"
+)
+
+// JST は日本標準時
+var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
+
+// CurrentLocationInfo は現在位置と走行区間情報
+type CurrentLocationInfo struct {
+    Latitude       float64
+    Longitude      float64
+    Timestamp      time.Time
+    SpeedMps       float64   // 速度（m/s）
+
+    // 出発地点（最後に到着した地点）
+    FromStop       string
+    FromStopIdx    int
+
+    // 目的地点（次の未到着地点）
+    ToStop         string
+    ToStopIdx      int
+    ToDistanceKm   float64
+    ToEtaMinutes   float64   // 到着予想時間（分）
+
+    // 後方互換性のため残す
+    NearestStop    string
+    NearestStopIdx int
+    DistanceKm     float64
+    NextStop       string
+    NextStopIdx    int
+    NextDistanceKm float64
+}
+
+// CourseLocationStatus は現在位置セクション＋テーブルをレンダリング（htmx polling用）
+templ CourseLocationStatus(lpID int64, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo) {
+    if currentLocation != nil {
+        <div class="mb-6 bg-white shadow sm:rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center mb-3">
+                <span class="text-xl mr-2">🚛</span>
+                <h3 class="text-lg font-semibold text-gray-900">現在の走行状況</h3>
+            </div>
+
+            <!-- 移動中の区間表示 -->
+            if currentLocation.FromStop != "" && currentLocation.ToStop != "" {
+                <div class="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <p class="text-sm font-medium text-blue-900">
+                        { currentLocation.FromStop } → { currentLocation.ToStop } へ移動中
+                    </p>
+                </div>
+            }
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- 次の目的地 -->
+                if currentLocation.ToStop != "" {
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-xs text-gray-500 mb-1">次の目的地</p>
+                        <p class="text-sm font-medium text-gray-900">{ currentLocation.ToStop }</p>
+                        <p class="text-xs text-gray-600">約 { fmt.Sprintf("%.2f", currentLocation.ToDistanceKm) } km</p>
+                    </div>
+                }
+
+                <!-- 到着予想時間 -->
+                if currentLocation.ToEtaMinutes > 0 {
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-xs text-gray-500 mb-1">到着予想</p>
+                        <p class="text-sm font-medium text-gray-900">約 { fmt.Sprintf("%.0f", currentLocation.ToEtaMinutes) } 分後</p>
+                        <p class="text-xs text-gray-600">速度 { fmt.Sprintf("%.0f", currentLocation.SpeedMps * 3.6) } km/h</p>
+                    </div>
+                }
+
+                <!-- 最終更新 -->
+                <div class="bg-gray-50 rounded-lg p-3">
+                    <p class="text-xs text-gray-500 mb-1">最終更新</p>
+                    <p class="text-sm font-medium text-gray-900">{ currentLocation.Timestamp.In(JST).Format("15:04:05") }</p>
+                </div>
+            </div>
+        </div>
+    } else {
+        <div class="mb-6 bg-gray-50 sm:rounded-lg border border-gray-200 p-4 text-center">
+            <p class="text-sm text-gray-500">位置情報がありません</p>
+        </div>
+    }
+
+    <div class="bg-white shadow sm:rounded-lg border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">順番</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到着時刻</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">住所</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">滞在</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">重量</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    for i, stop := range stops {
+                        <tr class={
+                            templ.KV("bg-green-50", stop.Status.String == status.Arrived),
+                            templ.KV("bg-blue-50", currentLocation != nil && i == currentLocation.ToStopIdx && stop.Status.String != status.Arrived),
+                            templ.KV("hover:bg-gray-50", stop.Status.String != status.Arrived && (currentLocation == nil || i != currentLocation.ToStopIdx)),
+                        }>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                if stop.Status.String == status.Arrived {
+                                    <span class="mr-1 text-green-600">✓</span>
+                                } else if currentLocation != nil && i == currentLocation.ToStopIdx {
+                                    <span class="mr-1">📍</span>
+                                }
+                                { stop.Sequence }
+                            </td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ stop.ArrivalTime.String }</td>
+                            <td class="px-4 py-3 text-sm font-medium">
+                                <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses/%s/stops/%d", lpID, courseName, stop.ID)) }
+                                   class="text-blue-600 hover:text-blue-800 hover:underline">
+                                    { stop.StopName }
+                                </a>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-600">{ stop.Address.String }</td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.StayMinutes.Int64) }分</td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.WeightKg.Int64) }kg</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+templ CourseDetail(lp database.LogisticsProject, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo) {
+    <div class="max-w-5xl mx-auto">
+        <div class="mb-6">
+            <div class="flex items-center mb-2">
+                <span class="text-3xl mr-3">🚛</span>
+                <h2 class="text-2xl font-bold text-gray-900">{ courseName }</h2>
+            </div>
+            <p class="mt-1 text-sm text-gray-500">
+                案件: { lp.Name } • 総停車地点数: { fmt.Sprintf("%d", len(stops)) }
+            </p>
+        </div>
+
+        <!-- htmx polling: 5秒ごとに現在位置セクション＋テーブルを更新 -->
+        <div id="course-location-status"
+             hx-get={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses/%s/location", lp.ID, courseName)) }
+             hx-trigger="every 5s"
+             hx-swap="innerHTML">
+            @CourseLocationStatus(lp.ID, courseName, stops, currentLocation)
+        </div>
+
+        <div class="mt-6 flex items-center justify-between">
+            <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses", lp.ID)) }
+               class="text-sm font-medium text-gray-600 hover:text-gray-900">
+                ← コース一覧に戻る
+            </a>
+            <div class="flex items-center gap-4">
+                <form action={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses/%s/reset", lp.ID, courseName)) }
+                      method="POST"
+                      onsubmit="return confirm('到着ステータスをリセットしますか？');">
+                    <button type="submit"
+                            class="text-sm font-medium text-orange-600 hover:text-orange-800">
+                        ステータスをリセット
+                    </button>
+                </form>
+                <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d", lp.ID)) }
+                   class="text-sm font-medium text-gray-600 hover:text-gray-900">
+                    案件詳細に戻る →
+                </a>
+            </div>
+        </div>
+    </div>
+}

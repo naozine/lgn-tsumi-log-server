@@ -1,9 +1,20 @@
+# ==========================================
+# BASE TEMPLATE SETTINGS (DO NOT EDIT)
+# ==========================================
+/bin
+/tmp
 /.idea
-/project_crud_with_auth_tmpl
+*.log
+.env
+.DS_Store
 
-# templ generated files
-*_templ.go
-/tmp/main
+# SQLC Generated Code
+# DBコードは自動生成されるため管理対象外とする
+internal/database/*.go
+
+# Templ Generated Files
+web/components/*_templ.go
+web/layouts/*_templ.go
 
 # SQLite database files
 *.db
@@ -12,5 +23,9 @@
 /app
 .bypass_emails
 /tmp/build-errors.log
-/.env
-deploy.config
+
+# ==========================================
+# BUSINESS LOGIC SETTINGS (EDIT FREELY)
+# ==========================================
+# Add your project-specific ignores here
+/my-local-data.csv

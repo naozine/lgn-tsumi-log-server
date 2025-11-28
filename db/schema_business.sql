@@ -1,13 +1,13 @@
--- プロジェクトの物流設定（拡張テーブル）
-CREATE TABLE IF NOT EXISTS project_logistics_settings (
-    project_id INTEGER PRIMARY KEY,
+-- 物流案件（プロジェクト）管理テーブル
+CREATE TABLE IF NOT EXISTS logistics_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
     csv_filename TEXT,
     csv_imported_at DATETIME,
     csv_row_count INTEGER DEFAULT 0,
     arrival_threshold_meters INTEGER DEFAULT 100,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 配送停車地データ
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS route_stops (
     desired_time_end TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES logistics_projects(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_route_stops_project ON route_stops(project_id);
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS location_logs (
     bearing REAL,
     battery_level INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES logistics_projects(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_location_logs_project_course ON location_logs(project_id, course_name);
