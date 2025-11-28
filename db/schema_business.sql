@@ -1,5 +1,6 @@
 -- 物流案件（プロジェクト）管理テーブル
-CREATE TABLE IF NOT EXISTS logistics_projects (
+-- projectsテーブルを物流用に拡張した定義で上書き
+CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     csv_filename TEXT,
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS route_stops (
     desired_time_end TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES logistics_projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_route_stops_project ON route_stops(project_id);
@@ -53,7 +54,7 @@ CREATE TABLE IF NOT EXISTS location_logs (
     bearing REAL,
     battery_level INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES logistics_projects(id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_location_logs_project_course ON location_logs(project_id, course_name);

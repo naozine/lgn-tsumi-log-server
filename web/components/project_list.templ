@@ -1,48 +1,66 @@
 package components
 
 import (
-    "github.com/naozine/project_crud_with_auth_tmpl/internal/database"
-    "github.com/naozine/project_crud_with_auth_tmpl/internal/appcontext"
-    "fmt"
+	"fmt"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
 )
 
 templ ProjectList(projects []database.Project) {
-    {{
-        userRole := appcontext.GetUserRole(ctx)
-    }}
-    <div class="space-y-6">
-		<div class="flex justify-between items-end">
-			<div>
-                <h2 class="text-2xl font-bold tracking-tight text-gray-900">プロジェクト</h2>
-                <p class="mt-1 text-sm text-gray-500">進行中のプロジェクトを管理します。</p>
-            </div>
-            if userRole == "admin" || userRole == "editor" {
-			    <a href="/projects/new" class="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black transition-colors">
-				    新規作成
-			    </a>
-            }
-		</div>
-        
+    <div class="max-w-7xl mx-auto">
+        <div class="mb-8 flex items-center justify-between">
+            <h2 class="text-2xl font-bold tracking-tight text-gray-900">物流案件一覧</h2>
+            <a href="/projects/new" class="inline-flex items-center rounded-md bg-black px-3 py-2 text-sm text-white hover:bg-gray-800 transition-colors">
+                新規案件作成
+            </a>
+        </div>
+
         if len(projects) == 0 {
-             <div class="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-                <p class="text-gray-500">プロジェクトが見つかりません。最初のプロジェクトを作成してください。</p>
+            <div class="text-center py-12 bg-white border-2 border-dashed border-gray-300 rounded-lg">
+                <p class="text-gray-500">まだ物流案件が作成されていません。</p>
+                <a href="/projects/new"
+                   class="mt-4 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-900">
+                    最初の案件を作成 →
+                </a>
             </div>
         } else {
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                for _, p := range projects {
-                    <a href={ templ.URL(fmt.Sprintf("/projects/%d", p.ID)) } class="group block rounded-lg border border-gray-200 bg-white p-6 hover:border-gray-300 hover:shadow-md transition-all duration-200">
-                        <div class="flex flex-col h-full justify-between space-y-4">
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{ p.Name }</h3>
-                                <p class="mt-1 text-xs text-gray-400">ID: { fmt.Sprintf("%d", p.ID) }</p>
+            <ul role="list" class="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white shadow-sm">
+                for _, lp := range projects {
+                    <li>
+                        <a href={ templ.URL(fmt.Sprintf("/projects/%d", lp.ID)) } class="block hover:bg-gray-50">
+                            <div class="flex items-center px-4 py-4 sm:px-6">
+                                <div class="min-w-0 flex-1 sm:flex sm:items-center sm:justify-between">
+                                    <div class="truncate">
+                                        <div class="flex text-sm">
+                                            <p class="font-medium text-indigo-600 truncate">{ lp.Name }</p>
+                                        </div>
+                                        <div class="mt-2 flex">
+                                            <div class="flex items-center text-sm text-gray-500">
+                                                <span>ID: { fmt.Sprintf("%d", lp.ID) }</span>
+                                                <span class="mx-2 text-gray-300">|</span>
+                                                <span>作成日: { lp.CreatedAt.Time.Format("2006/01/02") }</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 flex-shrink-0 sm:ml-5 sm:mt-0">
+                                        <div class="flex overflow-hidden -space-x-1">
+                                            if lp.CsvFilename.Valid {
+                                                <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">CSVデータあり</span>
+                                            } else {
+                                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">CSVデータなし</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ml-5 flex-shrink-0">
+                                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
                             </div>
-                            <div class="flex items-center justify-between pt-4 border-t border-gray-50">
-                                <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">稼働中</span>
-                            </div>
-                        </div>
-                    </a>
+                        </a>
+                    </li>
                 }
-            </div>
+            </ul>
         }
-	</div>
+    </div>
 }

@@ -26,16 +26,16 @@ import (
 // JST は日本標準時 (componentsからも参照されるためここにも定義)
 var JST = time.FixedZone("Asia/Tokyo", 9*60*60)
 
-type LogisticsProjectHandler struct {
+type ProjectHandler struct {
 	DB *database.Queries
 }
 
-func NewLogisticsProjectHandler(db *database.Queries) *LogisticsProjectHandler {
-	return &LogisticsProjectHandler{DB: db}
+func NewProjectHandler(db *database.Queries) *ProjectHandler {
+	return &ProjectHandler{DB: db}
 }
 
 // checkPermission は現在のユーザーが書き込み権限を持っているかチェック
-func (h *LogisticsProjectHandler) checkPermission(c echo.Context) error {
+func (h *ProjectHandler) checkPermission(c echo.Context) error {
 	role := appcontext.GetUserRole(c.Request().Context())
 	if role != "admin" && role != "editor" {
 		return echo.NewHTTPError(http.StatusForbidden, "アクセス拒否: 書き込み権限が必要です")
@@ -43,14 +43,14 @@ func (h *LogisticsProjectHandler) checkPermission(c echo.Context) error {
 	return nil
 }
 
-// ListLogisticsProjects は物流案件一覧ページを表示
-func (h *LogisticsProjectHandler) ListLogisticsProjects(c echo.Context) error {
+// ListProjects は物流案件一覧ページを表示
+func (h *ProjectHandler) ListProjects(c echo.Context) error {
 	ctx := c.Request().Context()
-	logisticsProjects, err := h.DB.ListLogisticsProjects(ctx)
+	projects, err := h.DB.ListProjects(ctx)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
-	content := components.LogisticsProjectList(logisticsProjects)
+	content := components.ProjectList(projects)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -58,13 +58,13 @@ func (h *LogisticsProjectHandler) ListLogisticsProjects(c echo.Context) error {
 	return layouts.Base("物流案件一覧", content).Render(ctx, c.Response().Writer)
 }
 
-// NewLogisticsProjectPage は新規物流案件作成ページを表示
-func (h *LogisticsProjectHandler) NewLogisticsProjectPage(c echo.Context) error {
+// NewProjectPage は新規物流案件作成ページを表示
+func (h *ProjectHandler) NewProjectPage(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
 	ctx := c.Request().Context()
-	content := components.LogisticsProjectForm()
+	content := components.ProjectForm()
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -72,8 +72,8 @@ func (h *LogisticsProjectHandler) NewLogisticsProjectPage(c echo.Context) error 
 	return layouts.Base("新規物流案件作成", content).Render(ctx, c.Response().Writer)
 }
 
-// CreateLogisticsProject は新規物流案件を作成
-func (h *LogisticsProjectHandler) CreateLogisticsProject(c echo.Context) error {
+// CreateProject は新規物流案件を作成
+func (h *ProjectHandler) CreateProject(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -87,30 +87,30 @@ func (h *LogisticsProjectHandler) CreateLogisticsProject(c echo.Context) error {
 		}
 	}
 
-	_, err := h.DB.CreateLogisticsProject(ctx, database.CreateLogisticsProjectParams{
+	_, err := h.DB.CreateProject(ctx, database.CreateProjectParams{
 		Name:                   name,
 		ArrivalThresholdMeters: sql.NullInt64{Int64: arrivalThreshold, Valid: true},
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
-	return c.Redirect(http.StatusSeeOther, "/logistics/projects")
+	return c.Redirect(http.StatusSeeOther, "/projects")
 }
 
-// ShowLogisticsProject は物流案件詳細ページを表示
-func (h *LogisticsProjectHandler) ShowLogisticsProject(c echo.Context) error {
+// ShowProject は物流案件詳細ページを表示
+func (h *ProjectHandler) ShowProject(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
 	}
 
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
 
-	content := components.LogisticsProjectDetail(lp)
+	content := components.ProjectDetail(lp)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -118,8 +118,8 @@ func (h *LogisticsProjectHandler) ShowLogisticsProject(c echo.Context) error {
 	return layouts.Base(lp.Name, content).Render(ctx, c.Response().Writer)
 }
 
-// EditLogisticsProjectPage は物流案件編集ページを表示
-func (h *LogisticsProjectHandler) EditLogisticsProjectPage(c echo.Context) error {
+// EditProjectPage は物流案件編集ページを表示
+func (h *ProjectHandler) EditProjectPage(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -129,12 +129,12 @@ func (h *LogisticsProjectHandler) EditLogisticsProjectPage(c echo.Context) error
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
 	}
 
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
 
-	content := components.LogisticsProjectEdit(lp)
+	content := components.ProjectEdit(lp)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -142,8 +142,8 @@ func (h *LogisticsProjectHandler) EditLogisticsProjectPage(c echo.Context) error
 	return layouts.Base("編集: "+lp.Name, content).Render(ctx, c.Response().Writer)
 }
 
-// UpdateLogisticsProject は物流案件を更新
-func (h *LogisticsProjectHandler) UpdateLogisticsProject(c echo.Context) error {
+// UpdateProject は物流案件を更新
+func (h *ProjectHandler) UpdateProject(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (h *LogisticsProjectHandler) UpdateLogisticsProject(c echo.Context) error {
 		}
 	}
 
-	_, err = h.DB.UpdateLogisticsProject(ctx, database.UpdateLogisticsProjectParams{
+	_, err = h.DB.UpdateProject(ctx, database.UpdateProjectParams{
 		ID:                     lpID,
 		Name:                   name,
 		ArrivalThresholdMeters: sql.NullInt64{Int64: arrivalThreshold, Valid: true},
@@ -170,11 +170,11 @@ func (h *LogisticsProjectHandler) UpdateLogisticsProject(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/logistics/projects/%d", lpID))
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d", lpID))
 }
 
-// DeleteLogisticsProject は物流案件を削除
-func (h *LogisticsProjectHandler) DeleteLogisticsProject(c echo.Context) error {
+// DeleteProject は物流案件を削除
+func (h *ProjectHandler) DeleteProject(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -184,16 +184,16 @@ func (h *LogisticsProjectHandler) DeleteLogisticsProject(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
 	}
 
-	err = h.DB.DeleteLogisticsProject(ctx, lpID)
+	err = h.DB.DeleteProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	return c.Redirect(http.StatusSeeOther, "/logistics/projects")
+	return c.Redirect(http.StatusSeeOther, "/projects")
 }
 
 // UploadRoutesPage はCSVアップロードページを表示
-func (h *LogisticsProjectHandler) UploadRoutesPage(c echo.Context) error {
+func (h *ProjectHandler) UploadRoutesPage(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (h *LogisticsProjectHandler) UploadRoutesPage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
 	}
 
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -217,7 +217,7 @@ func (h *LogisticsProjectHandler) UploadRoutesPage(c echo.Context) error {
 }
 
 // UploadRoutes はCSVファイルをアップロードして既存データを上書き
-func (h *LogisticsProjectHandler) UploadRoutes(c echo.Context) error {
+func (h *ProjectHandler) UploadRoutes(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (h *LogisticsProjectHandler) UploadRoutes(c echo.Context) error {
 	}
 
 	// 物流案件の存在確認
-	_, err = h.DB.GetLogisticsProject(ctx, lpID)
+	_, err = h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -279,7 +279,7 @@ func (h *LogisticsProjectHandler) UploadRoutes(c echo.Context) error {
 	}
 
 	// 物流案件のCSV情報を更新
-	_, err = h.DB.UpdateLogisticsProjectCSV(ctx, database.UpdateLogisticsProjectCSVParams{
+	_, err = h.DB.UpdateProjectCSV(ctx, database.UpdateProjectCSVParams{
 		ID: lpID,
 		CsvFilename: sql.NullString{
 			String: fileHeader.Filename,
@@ -325,18 +325,18 @@ func (h *LogisticsProjectHandler) UploadRoutes(c echo.Context) error {
 	}
 
 	// PRG: 物流案件詳細ページへリダイレクト
-	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/logistics/projects/%d", lpID))
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d", lpID))
 }
 
 // ListCourses はコース一覧ページを表示
-func (h *LogisticsProjectHandler) ListCourses(c echo.Context) error {
+func (h *ProjectHandler) ListCourses(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
 	}
 
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -372,7 +372,7 @@ func (h *LogisticsProjectHandler) ListCourses(c echo.Context) error {
 }
 
 // ShowCourse はコース詳細ページを表示
-func (h *LogisticsProjectHandler) ShowCourse(c echo.Context) error {
+func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -380,7 +380,7 @@ func (h *LogisticsProjectHandler) ShowCourse(c echo.Context) error {
 	}
 	courseName := c.Param("course_name")
 
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -417,7 +417,7 @@ func (h *LogisticsProjectHandler) ShowCourse(c echo.Context) error {
 }
 
 // GetCurrentLocation は現在位置セクションのみを返す（htmx polling用）
-func (h *LogisticsProjectHandler) GetCurrentLocation(c echo.Context) error {
+func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -426,7 +426,7 @@ func (h *LogisticsProjectHandler) GetCurrentLocation(c echo.Context) error {
 	courseName := c.Param("course_name")
 
 	// 物流案件情報を取得（到着判定閾値を使用）
-	lp, err := h.DB.GetLogisticsProject(ctx, lpID)
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -471,7 +471,7 @@ func (h *LogisticsProjectHandler) GetCurrentLocation(c echo.Context) error {
 }
 
 // ShowStop は地点詳細ページを表示
-func (h *LogisticsProjectHandler) ShowStop(c echo.Context) error {
+func (h *ProjectHandler) ShowStop(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -484,7 +484,7 @@ func (h *LogisticsProjectHandler) ShowStop(c echo.Context) error {
 	}
 
 	// 物流案件の存在確認
-	_, err = h.DB.GetLogisticsProject(ctx, lpID)
+	_, err = h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
@@ -511,7 +511,7 @@ func (h *LogisticsProjectHandler) ShowStop(c echo.Context) error {
 }
 
 // GetStopTruckStatus はトラック状況セクションのみを返す（htmx polling用）
-func (h *LogisticsProjectHandler) GetStopTruckStatus(c echo.Context) error {
+func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -542,7 +542,7 @@ func (h *LogisticsProjectHandler) GetStopTruckStatus(c echo.Context) error {
 }
 
 // calculateTruckStatus はトラックの状況を計算する
-func (h *LogisticsProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop) *components.TruckStatusInfo {
+func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop) *components.TruckStatusInfo {
 	truckStatus := &components.TruckStatusInfo{
 		HasLocation: false,
 	}
@@ -629,7 +629,7 @@ func parseTimeToMinutesOrZero(timeStr string) int {
 }
 
 // ResetCourseStatus はコースの全地点のステータスを「未訪問」にリセットする
-func (h *LogisticsProjectHandler) ResetCourseStatus(c echo.Context) error {
+func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
 	}
@@ -652,7 +652,7 @@ func (h *LogisticsProjectHandler) ResetCourseStatus(c echo.Context) error {
 	}
 
 	// PRG: コース詳細ページへリダイレクト
-	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/logistics/projects/%d/courses/%s", lpID, courseName))
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d/courses/%s", lpID, courseName))
 }
 
 // checkAndUpdateArrivalDeparture は現在位置から到着・出発判定を行い、ステータスと実績時刻を更新する
@@ -662,7 +662,7 @@ func (h *LogisticsProjectHandler) ResetCourseStatus(c echo.Context) error {
 // 1. 未到着の地点が範囲内 → 到着（status=到着済, actual_arrival_time=ログ時刻）
 // 2. 到着済みで出発時刻なしの地点が範囲外 → 出発（actual_departure_time=ログ時刻）
 // 3. 到着済みで出発時刻ありの地点が範囲内 → 出発取り消し（actual_departure_time=NULL）
-func (h *LogisticsProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
+func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
 	// メートルからキロメートルに変換
 	arrivalThresholdKm := float64(arrivalThresholdM) / 1000.0
 	// JSTに変換して時刻文字列を生成
@@ -712,12 +712,12 @@ func (h *LogisticsProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Con
 }
 
 // checkAndUpdateArrival は後方互換性のためのラッパー（非推奨）
-func (h *LogisticsProjectHandler) checkAndUpdateArrival(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
+func (h *ProjectHandler) checkAndUpdateArrival(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
 	h.checkAndUpdateArrivalDeparture(ctx, loc, stops, arrivalThresholdM)
 }
 
 // calculateCurrentSection は現在位置から走行中の区間を計算する
-func (h *LogisticsProjectHandler) calculateCurrentSection(loc database.LocationLog, stops []database.RouteStop) *components.CurrentLocationInfo {
+func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops []database.RouteStop) *components.CurrentLocationInfo {
 	if len(stops) == 0 {
 		return nil
 	}

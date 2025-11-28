@@ -10,7 +10,7 @@ templ RouteUploadForm(projectID int64, projectName string) {
             <p class="mt-1 text-sm text-red-600">※ アップロードすると既存の配送ルートデータが上書きされます</p>
         </div>
 
-        <form action={ templ.URL(fmt.Sprintf("/logistics/projects/%d/courses/upload", projectID)) }
+        <form action={ templ.URL(fmt.Sprintf("/projects/%d/courses/upload", projectID)) }
               method="POST"
               enctype="multipart/form-data"
               class="space-y-6">
@@ -65,7 +65,7 @@ templ RouteUploadForm(projectID int64, projectName string) {
             </div>
 
             <div class="flex items-center justify-end gap-x-4 pt-6 border-t border-gray-100">
-                <a href={ templ.URL(fmt.Sprintf("/logistics/projects/%d", projectID)) }
+                <a href={ templ.URL(fmt.Sprintf("/projects/%d", projectID)) }
                    class="text-sm font-semibold text-gray-900 hover:text-gray-700">
                     キャンセル
                 </a>

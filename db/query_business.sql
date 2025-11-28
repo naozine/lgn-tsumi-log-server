@@ -1,25 +1,25 @@
--- name: ListLogisticsProjects :many
-SELECT * FROM logistics_projects ORDER BY created_at DESC;
+-- name: ListProjects :many
+SELECT * FROM projects ORDER BY created_at DESC;
 
--- name: CreateLogisticsProject :one
-INSERT INTO logistics_projects (name, arrival_threshold_meters)
+-- name: CreateProject :one
+INSERT INTO projects (name, arrival_threshold_meters)
 VALUES (?, ?)
 RETURNING *;
 
--- name: GetLogisticsProject :one
-SELECT * FROM logistics_projects WHERE id = ? LIMIT 1;
+-- name: GetProject :one
+SELECT * FROM projects WHERE id = ? LIMIT 1;
 
--- name: UpdateLogisticsProject :one
-UPDATE logistics_projects
+-- name: UpdateProject :one
+UPDATE projects
 SET name = ?, arrival_threshold_meters = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 
--- name: DeleteLogisticsProject :exec
-DELETE FROM logistics_projects WHERE id = ?;
+-- name: DeleteProject :exec
+DELETE FROM projects WHERE id = ?;
 
--- name: UpdateLogisticsProjectCSV :one
-UPDATE logistics_projects
+-- name: UpdateProjectCSV :one
+UPDATE projects
 SET csv_filename = ?, csv_imported_at = ?, csv_row_count = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;

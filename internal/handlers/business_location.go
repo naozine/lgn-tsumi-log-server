@@ -80,12 +80,12 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 	}
 
 	// 物流案件の存在確認
-	_, err := h.DB.GetLogisticsProject(ctx, req.ProjectID)
+	_, err := h.DB.GetProject(ctx, req.ProjectID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return c.JSON(http.StatusNotFound, LocationResponse{
 				Success: false,
-				Error:   "Invalid logistics_project_id",
+				Error:   "Invalid project_id",
 			})
 		}
 		log.Printf("Database error: %v", err)
