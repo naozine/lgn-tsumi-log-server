@@ -1,9 +1,9 @@
 version: "2"
 sql:
-  - schema: 
+  - schema:
       - "db/schema.sql"
       - "db/schema_business.sql"
-    queries: 
+    queries:
       - "db/query.sql"
       - "db/query_business.sql"
     engine: "sqlite"

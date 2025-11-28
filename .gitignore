@@ -20,9 +20,12 @@ web/layouts/*_templ.go
 *.db
 *.db-shm
 *.db-wal
+
+# etc
 /app
 .bypass_emails
 /tmp/build-errors.log
+deploy.config
 
 # ==========================================
 # BUSINESS LOGIC SETTINGS (EDIT FREELY)

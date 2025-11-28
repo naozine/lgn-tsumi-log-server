@@ -1,4 +1,10 @@
 -- +goose Up
+CREATE TABLE IF NOT EXISTS projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
@@ -13,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- +goose Down
 DROP TABLE users;
+DROP TABLE projects;
