@@ -3,17 +3,22 @@ package main
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/naozine/nz-magic-link/magiclink"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/appconfig"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/handlers"
 )
 
-// ConfigureBusinessSettings allows customization of MagicLink config
+// ConfigureBusinessSettings allows customization of MagicLink config and App Name
 func ConfigureBusinessSettings(config *magiclink.Config) {
 	config.RedirectURL = "/projects"         // Redirect to projects list after login
 	config.WebAuthnRedirectURL = "/projects" // Redirect to projects list after passkey login
+
+	// Set Application Name
+	appconfig.AppName = "プロジェクト管理"
 }
 
 // RegisterBusinessRoutes registers routes for business logic features
+
 func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magiclink.MagicLink) {
 	// Handlers for business logic
 	projectHandler := handlers.NewProjectHandler(queries) // Note: This is now business_projects.go
