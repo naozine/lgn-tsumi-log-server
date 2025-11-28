@@ -123,6 +123,9 @@ func main() {
 		mlConfig.WebAuthnAllowedOrigins = []string{"http://localhost:8080"}
 	}
 
+	// Allow business logic to configure MagicLink settings
+	ConfigureBusinessSettings(&mlConfig)
+
 	// Initialize MagicLink with existing DB connection
 	ml, err := magiclink.NewWithDB(mlConfig, conn)
 	if err != nil {

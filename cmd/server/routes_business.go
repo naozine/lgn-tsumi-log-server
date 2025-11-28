@@ -7,6 +7,12 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/handlers"
 )
 
+// ConfigureBusinessSettings allows customization of MagicLink config
+func ConfigureBusinessSettings(config *magiclink.Config) {
+	config.RedirectURL = "/projects"         // Redirect to projects list after login
+	config.WebAuthnRedirectURL = "/projects" // Redirect to projects list after passkey login
+}
+
 // RegisterBusinessRoutes registers routes for business logic features
 func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magiclink.MagicLink) {
 	// Handlers for business logic
