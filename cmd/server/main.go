@@ -131,7 +131,7 @@ func main() {
 
 	// 3. Initialize Handlers
 	queries := database.New(conn)
-	projectHandler := handlers.NewProjectHandler(queries)
+	// projectHandler := handlers.NewProjectHandler(queries) // Moved to RegisterBusinessRoutes
 	authHandler := handlers.NewAuthHandler(ml)
 	adminHandler := handlers.NewAdminHandler(queries)
 	profileHandler := handlers.NewProfileHandler(queries, ml)
@@ -157,18 +157,8 @@ func main() {
 	// MagicLink internal handlers
 	ml.RegisterHandlers(e)
 
-	// Protected Routes
-	// All project routes require authentication
-	projectGroup := e.Group("/projects")
-	projectGroup.Use(ml.AuthMiddleware()) // Apply auth middleware to this group
-
-	projectGroup.GET("", projectHandler.ListProjects)
-	projectGroup.GET("/new", projectHandler.NewProjectPage)
-	projectGroup.POST("/new", projectHandler.CreateProject)
-	projectGroup.GET("/:id", projectHandler.ShowProject)
-	projectGroup.GET("/:id/edit", projectHandler.EditProjectPage)
-	projectGroup.POST("/:id/update", projectHandler.UpdateProject)
-	projectGroup.POST("/:id/delete", projectHandler.DeleteProject)
+	// Register Business Logic Routes (e.g., projects)
+	RegisterBusinessRoutes(e, queries, ml)
 
 	// Admin Routes
 	adminGroup := e.Group("/admin")

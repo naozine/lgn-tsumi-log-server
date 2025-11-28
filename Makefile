@@ -34,21 +34,25 @@ SERVER_ADDR    ?= http://localhost:8080
 # -----------------------------------------------------------------------------
 # Targets
 # -----------------------------------------------------------------------------
-.PHONY: all build build-linux deploy sync restart logs clean
+.PHONY: all build build-linux deploy sync restart logs clean generate
 
 all: build-linux
 
-# 0. Local build (開発・テスト用)
-build:
-	@echo ">> Building $(VERSION)..."
+# Generate all auto-generated code (sqlc, templ)
+generate:
+	@echo ">> Generating code..."
+	sqlc generate
 	templ generate
+
+# 0. Local build (開発・テスト用)
+build: generate
+	@echo ">> Building $(VERSION)..."
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
 
 # 1. Cross-compile for Linux (amd64) using Pure Go (no CGO required)
 #    modernc.org/sqlite (Pure Go) を使用しているため、Docker不要でクロスコンパイル可能です。
-build-linux:
+build-linux: generate
 	@echo ">> Building $(VERSION) for Linux/amd64..."
-	templ generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -v -o $(BUILD_DIR)/$(BINARY_NAME)-linux $(CMD_PATH)
 
 # 2. Deploy: Build -> Push Binary -> Push Service Config -> Restart Service
