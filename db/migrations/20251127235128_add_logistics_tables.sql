@@ -1,15 +1,10 @@
 -- +goose Up
--- 物流案件（プロジェクト）管理テーブル
-CREATE TABLE IF NOT EXISTS projects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    csv_filename TEXT,
-    csv_imported_at DATETIME,
-    csv_row_count INTEGER DEFAULT 0,
-    arrival_threshold_meters INTEGER DEFAULT 100,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+-- projectsテーブルに物流関連カラムを追加
+ALTER TABLE projects ADD COLUMN csv_filename TEXT;
+ALTER TABLE projects ADD COLUMN csv_imported_at DATETIME;
+ALTER TABLE projects ADD COLUMN csv_row_count INTEGER DEFAULT 0;
+ALTER TABLE projects ADD COLUMN arrival_threshold_meters INTEGER DEFAULT 100;
+ALTER TABLE projects ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP;
 
 -- 配送停車地データ
 CREATE TABLE IF NOT EXISTS route_stops (
@@ -61,6 +56,9 @@ CREATE INDEX IF NOT EXISTS idx_location_logs_project_course ON location_logs(pro
 CREATE INDEX IF NOT EXISTS idx_location_logs_timestamp ON location_logs(timestamp);
 
 -- +goose Down
+-- projectsテーブルのカラム削除はSQLiteではALTER TABLE DROP COLUMNが限定的、
+-- またはテーブル再作成が必要になるため、ここでは行わない。
+-- 通常はDOWNでカラムを削除すべきだが、開発用途でDB初期化が前提ならスキップ可。
+-- 派生プロジェクト側でprojectsテーブルを変更しているため、ベースのDOWNと競合する可能性もある。
 DROP TABLE IF EXISTS location_logs;
 DROP TABLE IF EXISTS route_stops;
-DROP TABLE IF EXISTS projects;
