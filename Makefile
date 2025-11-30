@@ -59,8 +59,8 @@ build-linux: generate
 deploy: build-linux
 	@echo ">> Deploying to $(VPS_HOST) (Port: $(SSH_PORT))..."
 
-	# 1. リモートディレクトリ構造を作成（logsディレクトリも作成）
-	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)/web/static && mkdir -p $(VPS_DIR)/logs && mkdir -p ~/.config/systemd/user"
+	# 1. リモートディレクトリ構造を作成
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)/web/static && mkdir -p ~/.config/systemd/user"
 
 	# 2. ローカルで一時的なサービスファイルを作成
 	@echo "[Unit]\nDescription=$(SERVICE_NAME)\nAfter=network.target\n\n[Service]\nWorkingDirectory=$(VPS_DIR)\nExecStart=$(VPS_DIR)/$(BINARY_NAME)\n\
@@ -68,7 +68,7 @@ deploy: build-linux
 	Environment=\"ADMIN_EMAIL=$(ADMIN_EMAIL)\"\n\
 	Environment=\"ADMIN_NAME=$(ADMIN_NAME)\"\n\
 	Environment=\"SERVER_ADDR=$(SERVER_ADDR)\"\n\
-	Environment=\"LOG_DIR=$(VPS_DIR)/logs\"\n\
+	SyslogIdentifier=$(SERVICE_NAME)\n\
 	Restart=always\nRestartSec=5\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=default.target" > $(BINARY_NAME).service
 
 	# 3. バイナリとサービスファイルを転送
