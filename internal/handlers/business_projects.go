@@ -783,6 +783,15 @@ func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops
 		Timestamp: loc.Timestamp,
 	}
 
+	// 積載重量を計算
+	var currentLoad int64
+	for _, stop := range stops {
+		if stop.Status.String == status.Arrived && stop.WeightKg.Valid {
+			currentLoad += stop.WeightKg.Int64
+		}
+	}
+	info.CurrentLoadKg = currentLoad
+
 	// 速度を設定（m/s）
 	if loc.Speed.Valid {
 		info.SpeedMps = loc.Speed.Float64
