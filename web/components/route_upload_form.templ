@@ -1,0 +1,79 @@
+package components
+
+import "fmt"
+
+templ RouteUploadForm(projectID int64, projectName string) {
+    <div class="max-w-xl mx-auto">
+        <div class="mb-8">
+            <h3 class="text-2xl font-bold tracking-tight text-gray-900">配送ルートCSVアップロード</h3>
+            <p class="mt-2 text-sm text-gray-500">プロジェクト: { projectName }</p>
+            <p class="mt-1 text-sm text-red-600">※ アップロードすると既存の配送ルートデータが上書きされます</p>
+        </div>
+
+        <form action={ templ.URL(fmt.Sprintf("/projects/%d/courses/upload", projectID)) }
+              method="POST"
+              enctype="multipart/form-data"
+              class="space-y-6">
+
+            <div>
+                <label class="block text-sm font-medium text-gray-900 mb-2">
+                    CSVファイル（CP932エンコード）
+                </label>
+                <input
+                    type="file"
+                    name="csv_file"
+                    accept=".csv"
+                    required
+                    class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+                />
+                <p class="mt-2 text-xs text-gray-500">
+                    配送ルート情報を含むCSVファイルを選択してください。
+                </p>
+            </div>
+
+            <div class="space-y-3">
+                <label class="inline-flex items-center">
+                    <input type="checkbox" name="has_header" value="true" checked
+                           class="rounded border-gray-300" />
+                    <span class="ml-2 text-sm text-gray-700">1行目はヘッダー</span>
+                </label>
+
+                <div>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" name="skip_departure" value="true"
+                               class="rounded border-gray-300" />
+                        <span class="ml-2 text-sm text-gray-700">「出発」行をスキップ</span>
+                    </label>
+                    <p class="ml-6 text-xs text-gray-500">順番列が「出発」の行をインポートしません</p>
+                </div>
+
+                <div x-data="{ adjustTime: false }">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" name="adjust_time" value="true"
+                               x-model="adjustTime"
+                               class="rounded border-gray-300" />
+                        <span class="ml-2 text-sm text-gray-700">出発時間を調整</span>
+                    </label>
+                    <p class="ml-6 text-xs text-gray-500">先頭地点の到着時間を指定し、後続の地点も同じ差分だけシフトします</p>
+
+                    <div x-show="adjustTime" x-cloak class="mt-2 ml-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">開始時間</label>
+                        <input type="time" name="start_time" value="08:00"
+                               class="block w-32 rounded-md border-gray-300 shadow-sm text-sm" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-x-4 pt-6 border-t border-gray-100">
+                <a href={ templ.URL(fmt.Sprintf("/projects/%d", projectID)) }
+                   class="text-sm font-semibold text-gray-900 hover:text-gray-700">
+                    キャンセル
+                </a>
+                <button type="submit"
+                        class="rounded-md bg-black px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 transition-colors">
+                    アップロード
+                </button>
+            </div>
+        </form>
+    </div>
+}

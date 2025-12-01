@@ -12,6 +12,7 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/db"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/handlers"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/logger"
 	appMiddleware "github.com/naozine/project_crud_with_auth_tmpl/internal/middleware"
 
 	"github.com/joho/godotenv"
@@ -27,6 +28,14 @@ func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found or could not be loaded, using OS environment variables.")
 	}
+
+	// Initialize Logger
+	logConfig := logger.DefaultConfig()
+	logConfig.LogDir = os.Getenv("LOG_DIR") // 空ならstdout/stderr
+	if err := logger.Init(logConfig); err != nil {
+		log.Fatal("Failed to initialize logger:", err)
+	}
+	defer logger.Close()
 
 	// 1. Database Setup (for projects)
 	conn, err := sql.Open("sqlite", "file:app.db?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(on)")
@@ -85,7 +94,7 @@ func main() {
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("このメールアドレスは登録されていません。")
 			}
-			log.Printf("Database error in AllowLogin: %v", err)
+			logger.Error("Database error in AllowLogin", "error", err, "email", email)
 			return fmt.Errorf("システムエラーが発生しました。")
 		}
 
@@ -123,6 +132,9 @@ func main() {
 		mlConfig.WebAuthnAllowedOrigins = []string{"http://localhost:8080"}
 	}
 
+	// Allow business logic to configure MagicLink settings
+	ConfigureBusinessSettings(&mlConfig)
+
 	// Initialize MagicLink with existing DB connection
 	ml, err := magiclink.NewWithDB(mlConfig, conn)
 	if err != nil {
@@ -131,14 +143,15 @@ func main() {
 
 	// 3. Initialize Handlers
 	queries := database.New(conn)
-	projectHandler := handlers.NewProjectHandler(queries)
+	// projectHandler := handlers.NewProjectHandler(queries) // Moved to RegisterBusinessRoutes
 	authHandler := handlers.NewAuthHandler(ml)
 	adminHandler := handlers.NewAdminHandler(queries)
 	profileHandler := handlers.NewProfileHandler(queries, ml)
 
 	// 4. Echo Setup
 	e := echo.New()
-	e.Use(middleware.Logger())
+	e.HTTPErrorHandler = handlers.CustomHTTPErrorHandler // カスタムエラーハンドラ
+	e.Use(appMiddleware.AccessLogMiddleware(logger.AccessWriter()))
 	e.Use(middleware.Recover())
 	e.Use(appMiddleware.UserContextMiddleware(ml, conn)) // Add UserContext middleware globally
 
@@ -157,22 +170,12 @@ func main() {
 	// MagicLink internal handlers
 	ml.RegisterHandlers(e)
 
-	// Protected Routes
-	// All project routes require authentication
-	projectGroup := e.Group("/projects")
-	projectGroup.Use(ml.AuthMiddleware()) // Apply auth middleware to this group
-
-	projectGroup.GET("", projectHandler.ListProjects)
-	projectGroup.GET("/new", projectHandler.NewProjectPage)
-	projectGroup.POST("/new", projectHandler.CreateProject)
-	projectGroup.GET("/:id", projectHandler.ShowProject)
-	projectGroup.GET("/:id/edit", projectHandler.EditProjectPage)
-	projectGroup.POST("/:id/update", projectHandler.UpdateProject)
-	projectGroup.POST("/:id/delete", projectHandler.DeleteProject)
+	// Register Business Logic Routes (e.g., projects)
+	RegisterBusinessRoutes(e, queries, ml)
 
 	// Admin Routes
 	adminGroup := e.Group("/admin")
-	adminGroup.Use(ml.AuthMiddleware()) // Require login
+	adminGroup.Use(appMiddleware.RequireAuth(ml, "/auth/login")) // 未認証時はログインページへリダイレクト
 	// In a real app, we'd add a RequireRole("admin") middleware here too,
 	// but the handler checks it internally for now.
 
@@ -184,9 +187,9 @@ func main() {
 	adminGroup.DELETE("/users/:id", adminHandler.DeleteUser)
 
 	// Profile Routes
-	e.GET("/profile", profileHandler.ShowProfile, ml.AuthMiddleware())
-	e.POST("/profile", profileHandler.UpdateProfile, ml.AuthMiddleware())
-	e.DELETE("/profile/passkeys", profileHandler.DeletePasskeys, ml.AuthMiddleware())
+	e.GET("/profile", profileHandler.ShowProfile, appMiddleware.RequireAuth(ml, "/auth/login"))
+	e.POST("/profile", profileHandler.UpdateProfile, appMiddleware.RequireAuth(ml, "/auth/login"))
+	e.DELETE("/profile/passkeys", profileHandler.DeletePasskeys, appMiddleware.RequireAuth(ml, "/auth/login"))
 
 	// Start server
 	port := os.Getenv("PORT")

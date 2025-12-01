@@ -1,0 +1,269 @@
+package components
+
+import (
+	"fmt"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/status"
+)
+
+// TruckStatusInfo はトラックの現在状況（この地点から見た）
+type TruckStatusInfo struct {
+	HasLocation        bool   // 位置情報があるか
+	StopsAway          int    // この地点まであと何地点か（負の場合は通過済み）
+	CurrentStopName    string // トラックが現在いる地点（または直前に通過した地点）
+	DelayMinutes       int    // 予定からの遅れ（正: 遅れ、負: 早い）
+	LastArrivedStop    string // 最後に到着した地点名
+	LastArrivedTime    string // 最後に到着した時刻（実績）
+	LastDepartedTime   string // 最後に到着した地点の出発時刻（実績）
+	ScheduledTime      string // 最後に到着した地点の予定時刻
+}
+
+// StopTruckStatus はトラック状況セクションのみをレンダリング（htmx polling用）
+templ StopTruckStatus(truckStatus *TruckStatusInfo) {
+	if truckStatus != nil && truckStatus.HasLocation {
+		<div class="mb-6 bg-white shadow sm:rounded-lg border border-gray-200 p-4">
+			<div class="flex items-center mb-3">
+				<span class="text-xl mr-2">🚛</span>
+				<h3 class="text-lg font-semibold text-gray-900">トラック状況</h3>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<!-- 何地点前にいるか -->
+				<div class="bg-gray-50 rounded-lg p-3">
+					<p class="text-xs text-gray-500 mb-1">現在位置</p>
+					if truckStatus.StopsAway == 1 {
+						<p class="text-sm font-medium text-blue-600">
+							<span class="text-lg font-bold">この地点に向かっています</span>
+						</p>
+						if truckStatus.CurrentStopName != "" {
+							<p class="text-xs text-gray-600 mt-1">{ truckStatus.CurrentStopName } から移動中</p>
+						}
+					} else if truckStatus.StopsAway > 1 {
+						<p class="text-sm font-medium text-gray-900">
+							この地点の <span class="text-lg font-bold text-blue-600">{ fmt.Sprintf("%d", truckStatus.StopsAway) }</span> つ前
+						</p>
+						if truckStatus.CurrentStopName != "" {
+							<p class="text-xs text-gray-600 mt-1">{ truckStatus.CurrentStopName } 付近</p>
+						}
+					} else if truckStatus.StopsAway == 0 {
+						<p class="text-sm font-medium text-green-600">
+							<span class="text-lg font-bold">この地点に到着済み</span>
+						</p>
+					} else {
+						<p class="text-sm font-medium text-gray-600">
+							この地点は通過済み（{ fmt.Sprintf("%d", -truckStatus.StopsAway) } つ先へ移動）
+						</p>
+					}
+				</div>
+
+				<!-- 遅れ/早着 -->
+				<div class="bg-gray-50 rounded-lg p-3">
+					<p class="text-xs text-gray-500 mb-1">進捗状況</p>
+					if truckStatus.LastArrivedStop != "" && truckStatus.LastArrivedTime != "" {
+						if truckStatus.DelayMinutes > 0 {
+							<p class="text-sm font-medium text-red-600">
+								予定より <span class="text-lg font-bold">{ fmt.Sprintf("%d", truckStatus.DelayMinutes) }</span> 分遅れ
+							</p>
+						} else if truckStatus.DelayMinutes < 0 {
+							<p class="text-sm font-medium text-green-600">
+								予定より <span class="text-lg font-bold">{ fmt.Sprintf("%d", -truckStatus.DelayMinutes) }</span> 分早い
+							</p>
+							
+						} else {
+							<p class="text-sm font-medium text-gray-900">
+								予定通り
+							</p>
+						}
+						<p class="text-xs text-gray-600 mt-1">
+							{ truckStatus.LastArrivedStop }: 予定 { truckStatus.ScheduledTime } → 到着 { truckStatus.LastArrivedTime }
+							if truckStatus.LastDepartedTime != "" {
+								 → 出発 { truckStatus.LastDepartedTime }
+							}
+						</p>
+					} else {
+						<p class="text-sm text-gray-500">まだ到着した地点がありません</p>
+					}
+				</div>
+			</div>
+		</div>
+	} else if truckStatus != nil && !truckStatus.HasLocation {
+		<div class="mb-6 bg-gray-50 sm:rounded-lg border border-gray-200 p-4 text-center">
+			<p class="text-sm text-gray-500">トラックの位置情報がありません</p>
+		</div>
+	}
+}
+
+// StopDetail は地点詳細ページのコンポーネント
+templ StopDetail(projectID int64, courseName string, stopID int64, stop database.RouteStop, truckStatus *TruckStatusInfo) {
+	<div class="max-w-3xl mx-auto">
+		<div class="mb-4">
+			<a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s", projectID, courseName)) }
+			   class="text-sm font-medium text-gray-600 hover:text-gray-900">
+				← コース詳細に戻る
+			</a>
+		</div>
+
+		<div class="mb-6">
+			<div class="flex items-center mb-2">
+				<span class="text-3xl mr-3">📍</span>
+				<h2 class="text-2xl font-bold text-gray-900">{ stop.StopName }</h2>
+			</div>
+			<p class="mt-1 text-sm text-gray-500">
+				コース: { courseName } • 順番: { stop.Sequence }
+			</p>
+		</div>
+
+		<!-- トラック状況（htmx polling: 5秒ごとに更新） -->
+		<div id="stop-truck-status"
+			 hx-get={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/stops/%d/status", projectID, courseName, stopID)) }
+			 hx-trigger="every 5s"
+			 hx-swap="innerHTML">
+			@StopTruckStatus(truckStatus)
+		</div>
+
+		<div class="bg-white shadow sm:rounded-lg border border-gray-200 overflow-hidden">
+			<div class="px-4 py-5 sm:p-6">
+				<dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+					<!-- 到着時刻 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">到着時刻</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if stop.ArrivalTime.Valid && stop.ArrivalTime.String != "" {
+								{ stop.ArrivalTime.String }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- ステータス -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">ステータス</dt>
+						<dd class="mt-1 text-sm">
+							if stop.Status.Valid && stop.Status.String == status.Arrived {
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+									✓ { status.Arrived }
+								</span>
+							} else {
+								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+									{ stop.Status.String }
+								</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 住所 -->
+					<div class="sm:col-span-2">
+						<dt class="text-sm font-medium text-gray-500">住所</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if stop.Address.Valid && stop.Address.String != "" {
+								{ stop.Address.String }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 緯度・経度 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">緯度</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if stop.Latitude.Valid {
+								{ fmt.Sprintf("%.6f", stop.Latitude.Float64) }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-gray-500">経度</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if stop.Longitude.Valid {
+								{ fmt.Sprintf("%.6f", stop.Longitude.Float64) }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 滞在時間・重量 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">滞在時間</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							{ fmt.Sprintf("%d", stop.StayMinutes.Int64) }分
+						</dd>
+					</div>
+					<div>
+						<dt class="text-sm font-medium text-gray-500">重量</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							{ fmt.Sprintf("%d", stop.WeightKg.Int64) }kg
+						</dd>
+					</div>
+
+					<!-- 電話番号 -->
+					<div class="sm:col-span-2">
+						<dt class="text-sm font-medium text-gray-500">電話番号</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if stop.PhoneNumber.Valid && stop.PhoneNumber.String != "" {
+								<a href={ templ.URL("tel:" + stop.PhoneNumber.String) } class="text-blue-600 hover:text-blue-800">
+									{ stop.PhoneNumber.String }
+								</a>
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 希望時間帯 -->
+					<div class="sm:col-span-2">
+						<dt class="text-sm font-medium text-gray-500">希望時間帯</dt>
+						<dd class="mt-1 text-sm text-gray-900">
+							if (stop.DesiredTimeStart.Valid && stop.DesiredTimeStart.String != "") || (stop.DesiredTimeEnd.Valid && stop.DesiredTimeEnd.String != "") {
+								if stop.DesiredTimeStart.Valid && stop.DesiredTimeStart.String != "" {
+									{ stop.DesiredTimeStart.String }
+								}
+								〜
+								if stop.DesiredTimeEnd.Valid && stop.DesiredTimeEnd.String != "" {
+									{ stop.DesiredTimeEnd.String }
+								}
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 備考 -->
+					if (stop.Note1.Valid && stop.Note1.String != "") || (stop.Note2.Valid && stop.Note2.String != "") || (stop.Note3.Valid && stop.Note3.String != "") {
+						<div class="sm:col-span-2">
+							<dt class="text-sm font-medium text-gray-500">備考</dt>
+							<dd class="mt-1 text-sm text-gray-900 space-y-1">
+								if stop.Note1.Valid && stop.Note1.String != "" {
+									<p>{ stop.Note1.String }</p>
+								}
+								if stop.Note2.Valid && stop.Note2.String != "" {
+									<p>{ stop.Note2.String }</p>
+								}
+								if stop.Note3.Valid && stop.Note3.String != "" {
+									<p>{ stop.Note3.String }</p>
+								}
+							</dd>
+						</div>
+					}
+				</dl>
+			</div>
+		</div>
+
+		<!-- Google Maps リンク -->
+		if stop.Latitude.Valid && stop.Longitude.Valid {
+			<div class="mt-6">
+				<a href={ templ.URL(fmt.Sprintf("https://www.google.com/maps?q=%f,%f", stop.Latitude.Float64, stop.Longitude.Float64)) }
+				   target="_blank"
+				   rel="noopener noreferrer"
+				   class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+					<span class="mr-2">🗺️</span>
+					Google Mapsで開く
+				</a>
+			</div>
+		}
+	</div>
+}

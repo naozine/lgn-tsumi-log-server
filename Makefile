@@ -34,27 +34,31 @@ SERVER_ADDR    ?= http://localhost:8080
 # -----------------------------------------------------------------------------
 # Targets
 # -----------------------------------------------------------------------------
-.PHONY: all build build-linux deploy sync restart logs clean
+.PHONY: all build build-linux deploy sync restart logs clean generate
 
 all: build-linux
 
-# 0. Local build (開発・テスト用)
-build:
-	@echo ">> Building $(VERSION)..."
+# Generate all auto-generated code (sqlc, templ)
+generate:
+	@echo ">> Generating code..."
+	sqlc generate
 	templ generate
+
+# 0. Local build (開発・テスト用)
+build: generate
+	@echo ">> Building $(VERSION)..."
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
 
 # 1. Cross-compile for Linux (amd64) using Pure Go (no CGO required)
 #    modernc.org/sqlite (Pure Go) を使用しているため、Docker不要でクロスコンパイル可能です。
-build-linux:
+build-linux: generate
 	@echo ">> Building $(VERSION) for Linux/amd64..."
-	templ generate
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -v -o $(BUILD_DIR)/$(BINARY_NAME)-linux $(CMD_PATH)
 
 # 2. Deploy: Build -> Push Binary -> Push Service Config -> Restart Service
 deploy: build-linux
 	@echo ">> Deploying to $(VPS_HOST) (Port: $(SSH_PORT))..."
-	
+
 	# 1. リモートディレクトリ構造を作成
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)/web/static && mkdir -p ~/.config/systemd/user"
 
@@ -64,6 +68,7 @@ deploy: build-linux
 	Environment=\"ADMIN_EMAIL=$(ADMIN_EMAIL)\"\n\
 	Environment=\"ADMIN_NAME=$(ADMIN_NAME)\"\n\
 	Environment=\"SERVER_ADDR=$(SERVER_ADDR)\"\n\
+	SyslogIdentifier=$(SERVICE_NAME)\n\
 	Restart=always\nRestartSec=5\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=default.target" > $(BINARY_NAME).service
 
 	# 3. バイナリとサービスファイルを転送
