@@ -2,17 +2,22 @@
 
 **ベースURL**: `http://localhost:8080` (本番環境では https)
 
-**認証**: 不要（現バージョン。将来的に端末認証を追加予定）
+**認証**: 必要。HTTPリクエストヘッダーに `X-Project-Api-Key` を含める必要があります。APIキーはWeb UIのプロジェクト詳細画面から取得できます。
 
 **Content-Type**: `application/json`
 
 ## リクエスト仕様
 
+### ヘッダー
+
+| ヘッダー名            | 値の例            | 必須 | 説明                                     |
+|---------------------|-------------------|------|------------------------------------------|
+| `X-Project-Api-Key` | `prj_sk_xxxxxxxx...` | ✓    | プロジェクト共通APIキー                      |
+
 ### リクエストボディ（JSON）
 
 ```json
 {
-  "project_id": 1,
   "course_name": "車両1のコース",
   "locations": [
     {
@@ -32,7 +37,6 @@
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `project_id` | integer | ✓ | プロジェクトID |
 | `course_name` | string | ✓ | コース名（例: "車両1のコース"） |
 | `locations` | array | ✓ | 位置情報の配列（1件以上） |
 
@@ -66,28 +70,21 @@
 | `recorded` | integer | 記録された位置情報の件数 |
 | `message` | string | 成功メッセージ |
 
-### エラー時（HTTP 400/404/500）
+### エラー時（HTTP 400/401/404/500）
 
 ```json
 {
   "success": false,
-  "error": "Invalid project_id"
+  "error": "Invalid API key"
 }
 ```
-
-| フィールド | 型 | 説明 |
-|-----------|-----|------|
-| `success` | boolean | 処理結果（false: 失敗） |
-| `error` | string | エラーメッセージ |
-
-### エラーメッセージ一覧
 
 | HTTPステータス | エラーメッセージ | 原因 |
 |--------------|----------------|------|
 | 400 | `Invalid request format` | JSONフォーマットが不正 |
-| 400 | `project_id is required` | project_idが未指定 |
 | 400 | `course_name is required` | course_nameが未指定 |
 | 400 | `locations array cannot be empty` | locations配列が空 |
 | 400 | `No valid locations were recorded` | 全ての位置情報が不正 |
-| 404 | `Invalid project_id` | 指定されたプロジェクトが存在しない |
+| 401 | `API key is required` | `X-Project-Api-Key` ヘッダーが未指定 |
+| 401 | `Invalid API key` | 指定されたAPIキーが無効または存在しない |
 | 500 | `Internal server error` | サーバー内部エラー |

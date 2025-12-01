@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    api_key TEXT UNIQUE NOT NULL DEFAULT '',
     csv_filename TEXT,
     csv_imported_at DATETIME,
     csv_row_count INTEGER DEFAULT 0,

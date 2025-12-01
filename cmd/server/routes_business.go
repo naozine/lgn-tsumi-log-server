@@ -35,6 +35,7 @@ func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magicli
 	projectGroup.GET("/:id/edit", projectHandler.EditProjectPage)
 	projectGroup.POST("/:id/update", projectHandler.UpdateProject)
 	projectGroup.POST("/:id/delete", projectHandler.DeleteProject)
+	projectGroup.POST("/:id/api-key", projectHandler.RegenerateAPIKey)
 
 	// Logistics Features (Course and Route Management) within a logistics project
 	projectGroup.GET("/:id/courses/upload", projectHandler.UploadRoutesPage)

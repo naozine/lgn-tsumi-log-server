@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/csv"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -87,8 +89,15 @@ func (h *ProjectHandler) CreateProject(c echo.Context) error {
 		}
 	}
 
-	_, err := h.DB.CreateProject(ctx, database.CreateProjectParams{
+	// プロジェクト作成時にAPIキーを生成
+	newKey, err := generateAPIKey()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate API key for new project")
+	}
+
+	_, err = h.DB.CreateProject(ctx, database.CreateProjectParams{
 		Name:                   name,
+		ApiKey:                 newKey, // 生成したAPIキーを渡す
 		ArrivalThresholdMeters: sql.NullInt64{Int64: arrivalThreshold, Valid: true},
 	})
 	if err != nil {
@@ -190,6 +199,43 @@ func (h *ProjectHandler) DeleteProject(c echo.Context) error {
 	}
 
 	return c.Redirect(http.StatusSeeOther, "/projects")
+}
+
+// generateAPIKey generates a secure random API key
+func generateAPIKey() (string, error) {
+	bytes := make([]byte, 24) // 24 bytes * 2 (hex) = 48 chars
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "prj_sk_" + hex.EncodeToString(bytes), nil
+}
+
+// RegenerateAPIKey regenerates the API key for a project
+func (h *ProjectHandler) RegenerateAPIKey(c echo.Context) error {
+	if err := h.checkPermission(c); err != nil {
+		return err
+	}
+	ctx := c.Request().Context()
+	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid Project ID")
+	}
+
+	newKey, err := generateAPIKey()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to generate API key")
+	}
+
+	project, err := h.DB.UpdateProjectAPIKey(ctx, database.UpdateProjectAPIKeyParams{
+		ApiKey: newKey,
+		ID:     lpID,
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to update API key")
+	}
+
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
+	return components.APIKeyDisplay(project).Render(ctx, c.Response().Writer)
 }
 
 // UploadRoutesPage はCSVアップロードページを表示

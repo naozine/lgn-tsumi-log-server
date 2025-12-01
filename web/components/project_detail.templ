@@ -36,6 +36,11 @@ templ ProjectDetail(lp database.Project) {
                 <div class="mt-2 text-sm text-gray-500">
                     <p>到着判定距離: { fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) } m</p>
                 </div>
+                if userRole == "admin" || userRole == "editor" {
+                     <div class="mt-6 border-t border-gray-100 pt-4">
+                        @APIKeyDisplay(lp)
+                     </div>
+                }
             </div>
         </div>
 
@@ -79,5 +84,25 @@ templ ProjectDetail(lp database.Project) {
                 ← 一覧に戻る
             </a>
         </div>
+    </div>
+}
+
+templ APIKeyDisplay(p database.Project) {
+    <div id="api-key-section">
+        <label class="block text-sm font-medium text-gray-700">プロジェクト共通APIキー</label>
+        <div class="mt-1 flex rounded-md shadow-sm">
+            <div class="relative flex flex-grow items-stretch focus-within:z-10">
+                <input type="text" readonly value={ p.ApiKey } class="block w-full rounded-none rounded-l-md border-gray-300 focus:border-black focus:ring-black sm:text-sm bg-gray-50 text-gray-600 font-mono" />
+            </div>
+            <button hx-post={ fmt.Sprintf("/projects/%d/api-key", p.ID) }
+                    hx-target="#api-key-section"
+                    hx-swap="outerHTML"
+                    hx-confirm="APIキーを再生成しますか？\n古いキーは即座に使用できなくなります。\n登録済みの端末設定を更新する必要があります。"
+                    type="button"
+                    class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:border-black focus:outline-none focus:ring-1 focus:ring-black">
+                <span>再生成</span>
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-gray-500">このキーはモバイルアプリ（EMM/MDM設定）からのAPIリクエスト認証に使用されます。</p>
     </div>
 }

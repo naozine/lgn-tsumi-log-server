@@ -2,8 +2,8 @@
 SELECT * FROM projects ORDER BY created_at DESC;
 
 -- name: CreateProject :one
-INSERT INTO projects (name, arrival_threshold_meters)
-VALUES (?, ?)
+INSERT INTO projects (name, api_key, arrival_threshold_meters)
+VALUES (?, ?, ?)
 RETURNING *;
 
 -- name: GetProject :one
@@ -87,3 +87,13 @@ WHERE id = ?;
 UPDATE route_stops 
 SET actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP 
 WHERE id = ?;
+
+-- name: GetProjectByAPIKey :one
+SELECT * FROM projects WHERE api_key = ? LIMIT 1;
+
+-- name: UpdateProjectAPIKey :one
+UPDATE projects
+SET api_key = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+

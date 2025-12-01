@@ -31,7 +31,6 @@ type LocationData struct {
 }
 
 type LocationRequest struct {
-	ProjectID  int64          `json:"project_id"`
 	CourseName string         `json:"course_name"`
 	Locations  []LocationData `json:"locations"`
 }
@@ -48,6 +47,31 @@ type LocationResponse struct {
 func (h *LocationHandler) CreateLocations(c echo.Context) error {
 	ctx := c.Request().Context()
 
+	// 1. X-Project-Api-Key ヘッダーからAPIキーを取得
+	apiKey := c.Request().Header.Get("X-Project-Api-Key")
+	if apiKey == "" {
+		return c.JSON(http.StatusUnauthorized, LocationResponse{
+			Success: false,
+			Error:   "API key is required",
+		})
+	}
+
+	// 2. APIキーでプロジェクトを検索し認証
+	project, err := h.DB.GetProjectByAPIKey(ctx, apiKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, LocationResponse{
+				Success: false,
+				Error:   "Invalid API key",
+			})
+		}
+		log.Printf("Database error during API key validation: %v", err)
+		return c.JSON(http.StatusInternalServerError, LocationResponse{
+			Success: false,
+			Error:   "Internal server error during API key validation",
+		})
+	}
+
 	var req LocationRequest
 	if err := c.Bind(&req); err != nil {
 		log.Printf("Bind error: %v", err)
@@ -58,13 +82,7 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 	}
 
 	// バリデーション
-	if req.ProjectID == 0 {
-		return c.JSON(http.StatusBadRequest, LocationResponse{
-			Success: false,
-			Error:   "project_id is required",
-		})
-	}
-
+	// req.ProjectIDはAPIキーで認証されたものを使用するため、クライアントからの値は無視し、バリデーションも不要
 	if req.CourseName == "" {
 		return c.JSON(http.StatusBadRequest, LocationResponse{
 			Success: false,
@@ -79,21 +97,7 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 		})
 	}
 
-	// 物流案件の存在確認
-	_, err := h.DB.GetProject(ctx, req.ProjectID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.JSON(http.StatusNotFound, LocationResponse{
-				Success: false,
-				Error:   "Invalid project_id",
-			})
-		}
-		log.Printf("Database error: %v", err)
-		return c.JSON(http.StatusInternalServerError, LocationResponse{
-			Success: false,
-			Error:   "Internal server error",
-		})
-	}
+	// 物流案件の存在確認 (APIキーで既に認証済みのため、既存のGetProjectの呼び出しは不要)
 
 	// 各位置情報を保存
 	recorded := 0
@@ -124,7 +128,7 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 
 		// データベースに挿入
 		err = h.DB.CreateLocationLog(ctx, database.CreateLocationLogParams{
-			ProjectID:    req.ProjectID,
+			ProjectID:    project.ID, // ここをAPIキーで認証されたproject.IDに変更
 			CourseName:   req.CourseName,
 			Latitude:     loc.Latitude,
 			Longitude:    loc.Longitude,
