@@ -92,7 +92,8 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">順番</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到着時刻</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到着予定</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">到着実績</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">住所</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">滞在</th>
@@ -115,6 +116,13 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
                                 { stop.Sequence }
                             </td>
                             <td class="px-4 py-3 text-sm whitespace-nowrap">{ stop.ArrivalTime.String }</td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap font-bold text-gray-900">
+                                if stop.ActualArrivalTime.Valid && stop.ActualArrivalTime.String != "" {
+                                    { stop.ActualArrivalTime.String }
+                                } else {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
                             <td class="px-4 py-3 text-sm font-medium">
                                 <a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/stops/%d", projectID, courseName, stop.ID)) }
                                    class="text-blue-600 hover:text-blue-800 hover:underline">
