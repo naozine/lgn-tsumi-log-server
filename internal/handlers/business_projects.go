@@ -697,6 +697,15 @@ func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("リセット失敗: %v", err))
 	}
 
+	// ログを削除
+	err = h.DB.DeleteLocationLogsByCourse(ctx, database.DeleteLocationLogsByCourseParams{
+		ProjectID:  lpID,
+		CourseName: courseName,
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("ログ削除失敗: %v", err))
+	}
+
 	// PRG: コース詳細ページへリダイレクト
 	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d/courses/%s", lpID, courseName))
 }

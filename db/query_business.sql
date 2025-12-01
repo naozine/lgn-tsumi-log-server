@@ -97,3 +97,8 @@ SET api_key = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 
+-- name: DeleteLocationLogsByCourse :exec
+DELETE FROM location_logs
+WHERE project_id = ? AND course_name = ?;
+
+
