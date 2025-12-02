@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS projects (
     csv_imported_at DATETIME,
     csv_row_count INTEGER DEFAULT 0,
     arrival_threshold_meters INTEGER DEFAULT 100,
+    judge_stay_time_minutes INTEGER DEFAULT 0,
+    judge_speed_limit_kmh REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -2,8 +2,8 @@
 SELECT * FROM projects ORDER BY created_at DESC;
 
 -- name: CreateProject :one
-INSERT INTO projects (name, api_key, arrival_threshold_meters)
-VALUES (?, ?, ?)
+INSERT INTO projects (name, api_key, arrival_threshold_meters, judge_stay_time_minutes, judge_speed_limit_kmh)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetProject :one
@@ -11,7 +11,7 @@ SELECT * FROM projects WHERE id = ? LIMIT 1;
 
 -- name: UpdateProject :one
 UPDATE projects
-SET name = ?, arrival_threshold_meters = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, arrival_threshold_meters = ?, judge_stay_time_minutes = ?, judge_speed_limit_kmh = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 
@@ -56,6 +56,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 SELECT * FROM location_logs
 WHERE project_id = ? AND course_name = ?
 ORDER BY timestamp;
+
+-- name: ListLocationLogsByCourseDesc :many
+SELECT * FROM location_logs
+WHERE project_id = ? AND course_name = ?
+ORDER BY timestamp DESC;
 
 -- name: GetLatestLocationByCourse :one
 SELECT * FROM location_logs

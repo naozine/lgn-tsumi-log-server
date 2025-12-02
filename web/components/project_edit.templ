@@ -34,6 +34,35 @@ templ ProjectEdit(lp database.Project) {
                 </div>
             </div>
 
+            <div class="bg-gray-50 rounded-md p-4 border border-gray-200">
+                <h4 class="text-base font-semibold text-gray-900 mb-3">到着判定の詳細設定</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="judge_stay_time" class="block text-sm font-medium leading-6 text-gray-900">判定滞在時間（分）</label>
+                        <p class="text-xs text-gray-500 mt-1">この時間以上滞在すると到着とみなします（0=即時）</p>
+                        <div class="mt-2">
+                            <input type="number" name="judge_stay_time" id="judge_stay_time"
+                                value={ fmt.Sprintf("%d", lp.JudgeStayTimeMinutes.Int64) }
+                                min="0" max="60" step="1"
+                                class="block w-full rounded-md border-0 py-2.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="judge_speed_limit" class="block text-sm font-medium leading-6 text-gray-900">判定速度上限（km/h）</label>
+                        <p class="text-xs text-gray-500 mt-1">この速度以下の場合のみ到着とみなします（0=無視）</p>
+                        <div class="mt-2">
+                            <input type="number" name="judge_speed_limit" id="judge_speed_limit"
+                                value={ fmt.Sprintf("%.1f", lp.JudgeSpeedLimitKmh.Float64) }
+                                min="0" max="100" step="0.5"
+                                class="block w-full rounded-md border-0 py-2.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex items-center justify-end gap-x-4 pt-6 border-t border-gray-100">
                 <a href={ templ.URL(fmt.Sprintf("/projects/%d", lp.ID)) } class="text-sm font-semibold leading-6 text-gray-900 hover:text-gray-700">キャンセル</a>
                 <button type="submit" class="rounded-md bg-black px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black transition-colors">

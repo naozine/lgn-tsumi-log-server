@@ -89,6 +89,20 @@ func (h *ProjectHandler) CreateProject(c echo.Context) error {
 		}
 	}
 
+	judgeStayTime := int64(0)
+	if v := c.FormValue("judge_stay_time"); v != "" {
+		if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+			judgeStayTime = parsed
+		}
+	}
+
+	judgeSpeedLimit := float64(0)
+	if v := c.FormValue("judge_speed_limit"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+			judgeSpeedLimit = parsed
+		}
+	}
+
 	// プロジェクト作成時にAPIキーを生成
 	newKey, err := generateAPIKey()
 	if err != nil {
@@ -99,6 +113,8 @@ func (h *ProjectHandler) CreateProject(c echo.Context) error {
 		Name:                   name,
 		ApiKey:                 newKey, // 生成したAPIキーを渡す
 		ArrivalThresholdMeters: sql.NullInt64{Int64: arrivalThreshold, Valid: true},
+		JudgeStayTimeMinutes:   sql.NullInt64{Int64: judgeStayTime, Valid: true},
+		JudgeSpeedLimitKmh:     sql.NullFloat64{Float64: judgeSpeedLimit, Valid: true},
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
@@ -170,10 +186,26 @@ func (h *ProjectHandler) UpdateProject(c echo.Context) error {
 		}
 	}
 
+	judgeStayTime := int64(0)
+	if v := c.FormValue("judge_stay_time"); v != "" {
+		if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+			judgeStayTime = parsed
+		}
+	}
+
+	judgeSpeedLimit := float64(0)
+	if v := c.FormValue("judge_speed_limit"); v != "" {
+		if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+			judgeSpeedLimit = parsed
+		}
+	}
+
 	_, err = h.DB.UpdateProject(ctx, database.UpdateProjectParams{
 		ID:                     lpID,
 		Name:                   name,
 		ArrivalThresholdMeters: sql.NullInt64{Int64: arrivalThreshold, Valid: true},
+		JudgeStayTimeMinutes:   sql.NullInt64{Int64: judgeStayTime, Valid: true},
+		JudgeSpeedLimitKmh:     sql.NullFloat64{Float64: judgeSpeedLimit, Valid: true},
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
@@ -444,6 +476,12 @@ func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "コースが見つかりません")
 	}
 
+	// 到着判定の閾値を取得（デフォルト100m）
+	arrivalThresholdM := int64(100)
+	if lp.ArrivalThresholdMeters.Valid {
+		arrivalThresholdM = lp.ArrivalThresholdMeters.Int64
+	}
+
 	// 現在位置情報を取得
 	var currentLocation *components.CurrentLocationInfo
 	latestLog, err := h.DB.GetLatestLocationByCourse(ctx, database.GetLatestLocationByCourseParams{
@@ -451,7 +489,7 @@ func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 		CourseName: courseName,
 	})
 	if err == nil {
-		currentLocation = h.calculateCurrentSection(latestLog, stops)
+		currentLocation = h.calculateCurrentSection(latestLog, stops, arrivalThresholdM)
 	}
 
 	content := components.CourseDetail(lp, courseName, stops, currentLocation)
@@ -492,15 +530,23 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	// 現在位置情報を取得
-	var currentLocation *components.CurrentLocationInfo
-	latestLog, err := h.DB.GetLatestLocationByCourse(ctx, database.GetLatestLocationByCourseParams{
+	// 過去ログ取得（降順: 最新が先頭）
+	logs, err := h.DB.ListLocationLogsByCourseDesc(ctx, database.ListLocationLogsByCourseDescParams{
 		ProjectID:  lpID,
 		CourseName: courseName,
 	})
-	if err == nil {
+
+	var latestLog database.LocationLog
+	hasLog := false
+	if err == nil && len(logs) > 0 {
+		latestLog = logs[0]
+		hasLog = true
+	}
+
+	var currentLocation *components.CurrentLocationInfo
+	if hasLog {
 		// 到着判定を行い、必要ならステータスを更新
-		h.checkAndUpdateArrival(ctx, latestLog, stops, arrivalThresholdM)
+		h.checkAndUpdateArrivalDeparture(ctx, lp, logs, stops)
 
 		// 再度停車地を取得（ステータスが更新されている可能性）
 		stops, _ = h.DB.ListRouteStopsByCourse(ctx, database.ListRouteStopsByCourseParams{
@@ -508,7 +554,7 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 			CourseName: courseName,
 		})
 
-		currentLocation = h.calculateCurrentSection(latestLog, stops)
+		currentLocation = h.calculateCurrentSection(latestLog, stops, arrivalThresholdM)
 	}
 
 	// 部分レンダリング（現在位置セクション＋テーブル）
@@ -711,18 +757,32 @@ func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 }
 
 // checkAndUpdateArrivalDeparture は現在位置から到着・出発判定を行い、ステータスと実績時刻を更新する
-// arrivalThresholdM は到着判定の閾値（メートル単位）
-//
-// 判定ロジック:
-// 1. 未到着の地点が範囲内 → 到着（status=到着済, actual_arrival_time=ログ時刻）
-// 2. 到着済みで出発時刻なしの地点が範囲外 → 出発（actual_departure_time=ログ時刻）
-// 3. 到着済みで出発時刻ありの地点が範囲内 → 出発取り消し（actual_departure_time=NULL）
-func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
-	// メートルからキロメートルに変換
+func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, project database.Project, logs []database.LocationLog, stops []database.RouteStop) {
+	if len(logs) == 0 {
+		return
+	}
+	latestLog := logs[0]
+
+	// 設定値
+	arrivalThresholdM := int64(100)
+	if project.ArrivalThresholdMeters.Valid {
+		arrivalThresholdM = project.ArrivalThresholdMeters.Int64
+	}
 	arrivalThresholdKm := float64(arrivalThresholdM) / 1000.0
+
+	judgeStayMinutes := int64(0)
+	if project.JudgeStayTimeMinutes.Valid {
+		judgeStayMinutes = project.JudgeStayTimeMinutes.Int64
+	}
+
+	judgeSpeedLimit := 0.0
+	if project.JudgeSpeedLimitKmh.Valid {
+		judgeSpeedLimit = project.JudgeSpeedLimitKmh.Float64
+	}
+
 	// JSTに変換して時刻文字列を生成
 	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
-	logTimeStr := loc.Timestamp.In(jst).Format("15:04")
+	logTimeStr := latestLog.Timestamp.In(jst).Format("15:04")
 
 	for _, stop := range stops {
 		// 座標がない地点はスキップ
@@ -731,18 +791,28 @@ func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, loc
 		}
 
 		// 距離を計算
-		dist := geo.Haversine(loc.Latitude, loc.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
+		dist := geo.Haversine(latestLog.Latitude, latestLog.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
 		isWithinRange := dist < arrivalThresholdKm
 
 		if stop.Status.String != status.Arrived {
 			// 未到着の地点
 			if isWithinRange {
-				// 範囲内に入った → 到着（出発時刻はクリア）
-				_ = h.DB.UpdateRouteStopArrival(ctx, database.UpdateRouteStopArrivalParams{
-					Status:            sql.NullString{String: status.Arrived, Valid: true},
-					ActualArrivalTime: sql.NullString{String: logTimeStr, Valid: true},
-					ID:                stop.ID,
-				})
+				// 到着判定
+				isArrived := true
+
+				// 詳細判定が有効な場合 (滞在時間 > 0)
+				if judgeStayMinutes > 0 {
+					isArrived = h.checkStayCondition(logs, stop, arrivalThresholdKm, judgeSpeedLimit, judgeStayMinutes)
+				}
+
+				if isArrived {
+					// 範囲内に入った（かつ詳細条件クリア） → 到着（出発時刻はクリア）
+					_ = h.DB.UpdateRouteStopArrival(ctx, database.UpdateRouteStopArrivalParams{
+						Status:            sql.NullString{String: status.Arrived, Valid: true},
+						ActualArrivalTime: sql.NullString{String: logTimeStr, Valid: true},
+						ID:                stop.ID,
+					})
+				}
 			}
 		} else {
 			// 到着済みの地点
@@ -766,21 +836,58 @@ func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, loc
 	}
 }
 
-// checkAndUpdateArrival は後方互換性のためのラッパー（非推奨）
-func (h *ProjectHandler) checkAndUpdateArrival(ctx context.Context, loc database.LocationLog, stops []database.RouteStop, arrivalThresholdM int64) {
-	h.checkAndUpdateArrivalDeparture(ctx, loc, stops, arrivalThresholdM)
+// checkStayCondition は過去ログを遡って滞在条件（エリア内かつ低速が一定時間継続）を満たすかチェック
+func (h *ProjectHandler) checkStayCondition(logs []database.LocationLog, stop database.RouteStop, thresholdKm float64, speedLimit float64, stayMinutes int64) bool {
+	if len(logs) == 0 {
+		return false
+	}
+
+	latestTime := logs[0].Timestamp
+	requiredDuration := time.Duration(stayMinutes) * time.Minute
+
+	// 継続時間の計測開始時刻（遡っていく中で、条件を満たし続けている最も古い時刻）
+	oldestValidTime := latestTime
+
+	for _, log := range logs {
+		// 1. 距離チェック
+		dist := geo.Haversine(log.Latitude, log.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
+		if dist >= thresholdKm {
+			// 範囲外に出た時点で、連続滞在記録は途切れる
+			break
+		}
+
+		// 2. 速度チェック (設定されている場合)
+		if speedLimit > 0 {
+			// 速度情報がない、または速度オーバーならNG
+			if !log.Speed.Valid || log.Speed.Float64*3.6 > speedLimit { // m/s -> km/h
+				break
+			}
+		}
+
+		// 条件を満たすログなので、時刻を更新
+		oldestValidTime = log.Timestamp
+
+		// 3. 時間経過チェック
+		duration := latestTime.Sub(oldestValidTime)
+		if duration >= requiredDuration {
+			return true // 条件達成！
+		}
+	}
+
+	return false
 }
 
 // calculateCurrentSection は現在位置から走行中の区間を計算する
-func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops []database.RouteStop) *components.CurrentLocationInfo {
+func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops []database.RouteStop, thresholdM int64) *components.CurrentLocationInfo {
 	if len(stops) == 0 {
 		return nil
 	}
 
 	info := &components.CurrentLocationInfo{
-		Latitude:  loc.Latitude,
-		Longitude: loc.Longitude,
-		Timestamp: loc.Timestamp,
+		Latitude:   loc.Latitude,
+		Longitude:  loc.Longitude,
+		Timestamp:  loc.Timestamp,
+		ThresholdM: thresholdM,
 	}
 
 	// 積載重量を計算
@@ -832,6 +939,11 @@ func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops
 				loc.Latitude, loc.Longitude,
 				nextStop.Latitude.Float64, nextStop.Longitude.Float64,
 			)
+
+			// 範囲内判定
+			if info.ToDistanceKm*1000 < float64(thresholdM) {
+				info.IsWithinRange = true
+			}
 
 			// ETA計算（速度が有効な場合）
 			if info.SpeedMps > 0 {

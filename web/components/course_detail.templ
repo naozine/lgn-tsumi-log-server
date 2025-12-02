@@ -27,6 +27,8 @@ type CurrentLocationInfo struct {
     ToStopIdx      int
     ToDistanceKm   float64
     ToEtaMinutes   float64   // 到着予想時間（分）
+    IsWithinRange  bool      // 判定範囲内かどうか
+    ThresholdM     int64     // 判定閾値（メートル）
 
     // 後方互換性のため残す
     NearestStop    string
@@ -58,10 +60,22 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- 次の目的地 -->
                 if currentLocation.ToStop != "" {
-                    <div class="bg-gray-50 rounded-lg p-3">
+                    <div class={ "rounded-lg p-3", templ.KV("bg-green-50 border border-green-200", currentLocation.IsWithinRange), templ.KV("bg-gray-50", !currentLocation.IsWithinRange) }>
                         <p class="text-xs text-gray-500 mb-1">次の目的地</p>
                         <p class="text-sm font-medium text-gray-900">{ currentLocation.ToStop }</p>
-                        <p class="text-xs text-gray-600">約 { fmt.Sprintf("%.2f", currentLocation.ToDistanceKm) } km</p>
+                        if currentLocation.IsWithinRange {
+                            <p class="text-xs font-bold text-green-700 mt-1">
+                                範囲内 ({ fmt.Sprintf("%.0f", currentLocation.ToDistanceKm * 1000) } m)
+                            </p>
+                        } else if currentLocation.ToDistanceKm < 1.0 {
+                            <p class="text-xs text-gray-600">
+                                あと { fmt.Sprintf("%.0f", currentLocation.ToDistanceKm * 1000) } m
+                            </p>
+                        } else {
+                            <p class="text-xs text-gray-600">
+                                あと { fmt.Sprintf("%.2f", currentLocation.ToDistanceKm) } km
+                            </p>
+                        }
                     </div>
                 }
 

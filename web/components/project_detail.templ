@@ -33,8 +33,10 @@ templ ProjectDetail(lp database.Project) {
         <div class="bg-white shadow sm:rounded-lg border border-gray-200">
             <div class="px-4 py-5 sm:p-6">
                 <h3 class="text-base font-semibold leading-6 text-gray-900">案件設定</h3>
-                <div class="mt-2 text-sm text-gray-500">
-                    <p>到着判定距離: { fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) } m</p>
+                <div class="mt-2 text-sm text-gray-500 space-y-1">
+                    <p>到着判定距離: <span class="font-medium text-gray-900">{ fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) }</span> m</p>
+                    <p>判定滞在時間: <span class="font-medium text-gray-900">{ fmt.Sprintf("%d", lp.JudgeStayTimeMinutes.Int64) }</span> 分</p>
+                    <p>判定速度上限: <span class="font-medium text-gray-900">{ fmt.Sprintf("%.1f", lp.JudgeSpeedLimitKmh.Float64) }</span> km/h</p>
                 </div>
                 if userRole == "admin" || userRole == "editor" {
                      <div class="mt-6 border-t border-gray-100 pt-4">
