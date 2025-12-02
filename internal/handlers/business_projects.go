@@ -484,12 +484,12 @@ func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 
 	// 現在位置情報を取得
 	var currentLocation *components.CurrentLocationInfo
-	latestLog, err := h.DB.GetLatestLocationByCourse(ctx, database.GetLatestLocationByCourseParams{
+	logs, err := h.DB.ListLocationLogsByCourseDesc(ctx, database.ListLocationLogsByCourseDescParams{
 		ProjectID:  lpID,
 		CourseName: courseName,
 	})
-	if err == nil {
-		currentLocation = h.calculateCurrentSection(latestLog, stops, arrivalThresholdM)
+	if err == nil && len(logs) > 0 {
+		currentLocation = h.calculateCurrentSection(logs, stops, arrivalThresholdM)
 	}
 
 	content := components.CourseDetail(lp, courseName, stops, currentLocation)
@@ -536,10 +536,8 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 		CourseName: courseName,
 	})
 
-	var latestLog database.LocationLog
 	hasLog := false
 	if err == nil && len(logs) > 0 {
-		latestLog = logs[0]
 		hasLog = true
 	}
 
@@ -554,7 +552,7 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 			CourseName: courseName,
 		})
 
-		currentLocation = h.calculateCurrentSection(latestLog, stops, arrivalThresholdM)
+		currentLocation = h.calculateCurrentSection(logs, stops, arrivalThresholdM)
 	}
 
 	// 部分レンダリング（現在位置セクション＋テーブル）
@@ -878,10 +876,11 @@ func (h *ProjectHandler) checkStayCondition(logs []database.LocationLog, stop da
 }
 
 // calculateCurrentSection は現在位置から走行中の区間を計算する
-func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops []database.RouteStop, thresholdM int64) *components.CurrentLocationInfo {
-	if len(stops) == 0 {
+func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, stops []database.RouteStop, thresholdM int64) *components.CurrentLocationInfo {
+	if len(logs) == 0 {
 		return nil
 	}
+	loc := logs[0]
 
 	info := &components.CurrentLocationInfo{
 		Latitude:   loc.Latitude,
@@ -943,6 +942,22 @@ func (h *ProjectHandler) calculateCurrentSection(loc database.LocationLog, stops
 			// 範囲内判定
 			if info.ToDistanceKm*1000 < float64(thresholdM) {
 				info.IsWithinRange = true
+
+				// 滞在時間の計算
+				startTime := loc.Timestamp
+				thresholdKm := float64(thresholdM) / 1000.0
+				destLat := nextStop.Latitude.Float64
+				destLon := nextStop.Longitude.Float64
+
+				for _, log := range logs {
+					dist := geo.Haversine(log.Latitude, log.Longitude, destLat, destLon)
+					if dist < thresholdKm {
+						startTime = log.Timestamp // 範囲内なら開始時間を更新（より過去へ）
+					} else {
+						break // 範囲外に出たら終了
+					}
+				}
+				info.CurrentStayDuration = loc.Timestamp.Sub(startTime)
 			}
 
 			// ETA計算（速度が有効な場合）

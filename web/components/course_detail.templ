@@ -29,6 +29,7 @@ type CurrentLocationInfo struct {
     ToEtaMinutes   float64   // 到着予想時間（分）
     IsWithinRange  bool      // 判定範囲内かどうか
     ThresholdM     int64     // 判定閾値（メートル）
+    CurrentStayDuration time.Duration // 現在のエリア内滞在時間
 
     // 後方互換性のため残す
     NearestStop    string
@@ -67,6 +68,11 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
                             <p class="text-xs font-bold text-green-700 mt-1">
                                 範囲内 ({ fmt.Sprintf("%.0f", currentLocation.ToDistanceKm * 1000) } m)
                             </p>
+                            if currentLocation.CurrentStayDuration > 0 {
+                                <p class="text-xs text-green-600 mt-1">
+                                    滞在時間: { fmt.Sprintf("%.0f", currentLocation.CurrentStayDuration.Minutes()) } 分
+                                </p>
+                            }
                         } else if currentLocation.ToDistanceKm < 1.0 {
                             <p class="text-xs text-gray-600">
                                 あと { fmt.Sprintf("%.0f", currentLocation.ToDistanceKm * 1000) } m
