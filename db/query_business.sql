@@ -81,4 +81,29 @@ RETURNING *;
 DELETE FROM location_logs
 WHERE project_id = ? AND course_name = ?;
 
+-- name: CreatePhotoMetadata :one
+INSERT INTO photo_metadata (
+    project_id, course_name, device_photo_id, latitude, longitude, route_stop_id, taken_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
 
+-- name: GetPhotoMetadataByDeviceID :one
+SELECT * FROM photo_metadata
+WHERE project_id = ? AND device_photo_id = ?
+LIMIT 1;
+
+-- name: ListPhotoMetadataByCourse :many
+SELECT * FROM photo_metadata
+WHERE project_id = ? AND course_name = ?
+ORDER BY taken_at;
+
+-- name: ListPhotoMetadataByStop :many
+SELECT * FROM photo_metadata
+WHERE route_stop_id = ?
+ORDER BY taken_at;
+
+-- name: UpdatePhotoSynced :exec
+UPDATE photo_metadata
+SET photo_synced = 1
+WHERE id = ?;

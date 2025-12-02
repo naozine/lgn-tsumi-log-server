@@ -51,4 +51,5 @@ func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magicli
 	apiGroup := e.Group("/api/v1")
 	// Note: API authentication (e.g., API Key, Bearer Token) would typically be added here
 	apiGroup.POST("/locations", locationHandler.CreateLocations)
+	apiGroup.POST("/photos", locationHandler.CreatePhotoMetadata)
 }
