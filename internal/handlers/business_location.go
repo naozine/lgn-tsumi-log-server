@@ -3,8 +3,12 @@ package handlers
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -333,4 +337,155 @@ func (h *LocationHandler) CreatePhotoMetadata(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, response)
+}
+
+// 写真アップロードAPI用の構造体
+type PhotoUploadResponse struct {
+	Success  bool   `json:"success"`
+	PhotoID  int64  `json:"photo_id,omitempty"`
+	FilePath string `json:"file_path,omitempty"`
+	Message  string `json:"message,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+// POST /api/v1/photos/upload
+func (h *LocationHandler) UploadPhoto(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// 1. X-Project-Api-Key ヘッダーからAPIキーを取得
+	apiKey := c.Request().Header.Get("X-Project-Api-Key")
+	if apiKey == "" {
+		return c.JSON(http.StatusUnauthorized, PhotoUploadResponse{
+			Success: false,
+			Error:   "API key is required",
+		})
+	}
+
+	// 2. APIキーでプロジェクトを検索し認証
+	project, err := h.DB.GetProjectByAPIKey(ctx, apiKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, PhotoUploadResponse{
+				Success: false,
+				Error:   "Invalid API key",
+			})
+		}
+		log.Printf("Database error during API key validation: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Internal server error during API key validation",
+		})
+	}
+
+	// 3. フォームデータを取得
+	devicePhotoID := c.FormValue("device_photo_id")
+	if devicePhotoID == "" {
+		return c.JSON(http.StatusBadRequest, PhotoUploadResponse{
+			Success: false,
+			Error:   "device_photo_id is required",
+		})
+	}
+
+	// 4. 事前登録されたメタデータを取得
+	photoMeta, err := h.DB.GetPhotoMetadataByDeviceID(ctx, database.GetPhotoMetadataByDeviceIDParams{
+		ProjectID:     project.ID,
+		DevicePhotoID: devicePhotoID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, PhotoUploadResponse{
+				Success: false,
+				Error:   "Photo metadata not found. Register metadata first using POST /api/v1/photos",
+			})
+		}
+		log.Printf("Database error: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Failed to retrieve photo metadata",
+		})
+	}
+
+	// 5. 既にアップロード済みかチェック
+	if photoMeta.PhotoSynced.Valid && photoMeta.PhotoSynced.Int64 == 1 {
+		return c.JSON(http.StatusConflict, PhotoUploadResponse{
+			Success: false,
+			Error:   "Photo already uploaded",
+		})
+	}
+
+	// 6. ファイルを取得
+	file, err := c.FormFile("photo")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, PhotoUploadResponse{
+			Success: false,
+			Error:   "photo file is required",
+		})
+	}
+
+	// 7. ファイル形式チェック（JPEG/PNG）
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		return c.JSON(http.StatusBadRequest, PhotoUploadResponse{
+			Success: false,
+			Error:   "Unsupported file format. Use JPEG or PNG",
+		})
+	}
+
+	// 8. 保存先ディレクトリを作成
+	// data/photos/{project_id}/{course_name}/
+	saveDir := filepath.Join("data", "photos", fmt.Sprintf("%d", project.ID), photoMeta.CourseName)
+	if err := os.MkdirAll(saveDir, 0755); err != nil {
+		log.Printf("Failed to create directory: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Failed to create storage directory",
+		})
+	}
+
+	// 9. ファイルを保存
+	// ファイル名: {device_photo_id}{ext}
+	fileName := devicePhotoID + ext
+	savePath := filepath.Join(saveDir, fileName)
+
+	src, err := file.Open()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Failed to open uploaded file",
+		})
+	}
+	defer src.Close()
+
+	dst, err := os.Create(savePath)
+	if err != nil {
+		log.Printf("Failed to create file: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Failed to save file",
+		})
+	}
+	defer dst.Close()
+
+	if _, err = io.Copy(dst, src); err != nil {
+		log.Printf("Failed to write file: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoUploadResponse{
+			Success: false,
+			Error:   "Failed to write file",
+		})
+	}
+
+	// 10. photo_syncedフラグを更新
+	if err := h.DB.UpdatePhotoSynced(ctx, photoMeta.ID); err != nil {
+		log.Printf("Failed to update photo_synced flag: %v", err)
+		// ファイルは保存されたのでエラーにはしない
+	}
+
+	// 11. レスポンス
+	relativePath := filepath.Join("photos", fmt.Sprintf("%d", project.ID), photoMeta.CourseName, fileName)
+	return c.JSON(http.StatusOK, PhotoUploadResponse{
+		Success:  true,
+		PhotoID:  photoMeta.ID,
+		FilePath: relativePath,
+		Message:  "Photo uploaded successfully",
+	})
 }

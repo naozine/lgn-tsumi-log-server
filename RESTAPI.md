@@ -210,4 +210,87 @@
 
 - 該当地点の判定には、プロジェクト設定の「到着判定範囲（メートル）」を使用します
 - 複数の停車地が範囲内にある場合、最も近い停車地がマッチします
-- 写真の実データ同期用APIは別途実装予定です
+
+---
+
+## 写真アップロード API
+
+**URL**: `POST /api/v1/photos/upload`
+
+事前に登録された写真メタデータに対して、写真の実データをアップロードするAPI。WiFi接続時などに後から同期することを想定しています。
+
+### リクエスト仕様
+
+#### ヘッダー
+
+| ヘッダー名            | 値の例            | 必須 | 説明                                     |
+|---------------------|-------------------|------|------------------------------------------|
+| `X-Project-Api-Key` | `prj_sk_xxxxxxxx...` | ✓    | プロジェクト共通APIキー                      |
+| `Content-Type` | `multipart/form-data` | ✓    | マルチパートフォーム形式                      |
+
+#### リクエストボディ（multipart/form-data）
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `device_photo_id` | string | ✓ | 事前に登録済みのdevice_photo_id |
+| `photo` | file | ✓ | 写真ファイル（JPEG/PNG） |
+
+#### curlでの例
+
+```bash
+curl -X POST http://localhost:8080/api/v1/photos/upload \
+  -H "X-Project-Api-Key: prj_sk_xxxxxxxx..." \
+  -F "device_photo_id=IMG_20251202_123456" \
+  -F "photo=@/path/to/photo.jpg"
+```
+
+### レスポンス仕様
+
+#### 成功時（HTTP 200）
+
+```json
+{
+  "success": true,
+  "photo_id": 1,
+  "file_path": "photos/1/車両1/IMG_20251202_123456.jpg",
+  "message": "Photo uploaded successfully"
+}
+```
+
+#### レスポンスフィールド説明
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 処理結果（true: 成功） |
+| `photo_id` | integer | 写真メタデータのID |
+| `file_path` | string | 保存されたファイルの相対パス |
+| `message` | string | 結果メッセージ |
+
+### エラー時（HTTP 400/401/404/409/500）
+
+```json
+{
+  "success": false,
+  "error": "Photo already uploaded"
+}
+```
+
+| HTTPステータス | エラーメッセージ | 原因 |
+|--------------|----------------|------|
+| 400 | `device_photo_id is required` | device_photo_idが未指定 |
+| 400 | `photo file is required` | 写真ファイルが未指定 |
+| 400 | `Unsupported file format. Use JPEG or PNG` | 対応していないファイル形式 |
+| 401 | `API key is required` | `X-Project-Api-Key` ヘッダーが未指定 |
+| 401 | `Invalid API key` | 指定されたAPIキーが無効または存在しない |
+| 404 | `Photo metadata not found...` | 事前にメタデータが登録されていない |
+| 409 | `Photo already uploaded` | 既にアップロード済み |
+| 500 | `Failed to create storage directory` | ストレージディレクトリ作成失敗 |
+| 500 | `Failed to save file` | ファイル保存失敗 |
+
+### 備考
+
+- 写真のアップロード前に、必ず `POST /api/v1/photos` でメタデータを登録してください
+- 対応形式: JPEG (.jpg, .jpeg), PNG (.png)
+- ファイルサイズ制限: なし（サーバー設定に依存）
+- 同じdevice_photo_idで再アップロードするとエラー（409 Conflict）になります
+- ファイルは `data/photos/{project_id}/{course_name}/{device_photo_id}.{ext}` に保存されます
