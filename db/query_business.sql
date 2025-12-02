@@ -28,10 +28,10 @@ RETURNING *;
 INSERT INTO route_stops (
     project_id, course_name, sequence, arrival_time, stop_name,
     address, latitude, longitude, stay_minutes, weight_kg,
-    status, phone_number, note1, note2, note3,
+    phone_number, note1, note2, note3,
     desired_time_start, desired_time_end
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: DeleteRouteStopsByProject :exec
 DELETE FROM route_stops WHERE project_id = ?;
@@ -67,31 +67,6 @@ SELECT * FROM location_logs
 WHERE project_id = ? AND course_name = ?
 ORDER BY timestamp DESC
 LIMIT 1;
-
--- name: UpdateRouteStopStatus :exec
-UPDATE route_stops
-SET status = ?, updated_at = CURRENT_TIMESTAMP
-WHERE id = ?;
-
--- name: ResetRouteStopsStatusByCourse :exec
-UPDATE route_stops 
-SET status = ?, actual_arrival_time = NULL, actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP
-WHERE project_id = ? AND course_name = ?;
-
--- name: UpdateRouteStopArrival :exec
-UPDATE route_stops 
-SET status = ?, actual_arrival_time = ?, actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP 
-WHERE id = ?;
-
--- name: UpdateRouteStopDeparture :exec
-UPDATE route_stops 
-SET actual_departure_time = ?, updated_at = CURRENT_TIMESTAMP 
-WHERE id = ?;
-
--- name: ClearRouteStopDeparture :exec
-UPDATE route_stops 
-SET actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP 
-WHERE id = ?;
 
 -- name: GetProjectByAPIKey :one
 SELECT * FROM projects WHERE api_key = ? LIMIT 1;

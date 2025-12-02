@@ -18,7 +18,6 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/appcontext"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/geo"
-	"github.com/naozine/project_crud_with_auth_tmpl/internal/status"
 	"github.com/naozine/project_crud_with_auth_tmpl/web/components"
 	"github.com/naozine/project_crud_with_auth_tmpl/web/layouts"
 	"golang.org/x/text/encoding/japanese"
@@ -389,7 +388,6 @@ func (h *ProjectHandler) UploadRoutes(c echo.Context) error {
 			Longitude:        toNullFloat64(stop.Longitude),
 			StayMinutes:      toNullInt64(stop.StayMinutes),
 			WeightKg:         toNullInt64(stop.WeightKg),
-			Status:           toNullString(stop.Status),
 			PhoneNumber:      toNullString(stop.PhoneNumber),
 			Note1:            toNullString(stop.Note1),
 			Note2:            toNullString(stop.Note2),
@@ -500,8 +498,6 @@ func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 		CourseName: courseName,
 	})
 	if err == nil && len(logsDesc) > 0 {
-		currentLocation = h.calculateCurrentSection(logsDesc, stops, arrivalThresholdM)
-
 		// 昇順でログを取得して動的計算
 		logsAsc, err := h.DB.ListLocationLogsByCourse(ctx, database.ListLocationLogsByCourseParams{
 			ProjectID:  lpID,
@@ -510,6 +506,8 @@ func (h *ProjectHandler) ShowCourse(c echo.Context) error {
 		if err == nil {
 			timings = h.calculateStopTimings(logsAsc, stops, arrivalThresholdM, stayMinutes, speedLimitKmh)
 		}
+
+		currentLocation = h.calculateCurrentSection(logsDesc, stops, arrivalThresholdM, timings)
 	}
 
 	content := components.CourseDetail(lp, courseName, stops, currentLocation, timings)
@@ -570,8 +568,6 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 	var timings map[int64]*components.StopTiming
 
 	if err == nil && len(logsDesc) > 0 {
-		currentLocation = h.calculateCurrentSection(logsDesc, stops, arrivalThresholdM)
-
 		// 昇順でログを取得して動的計算
 		logsAsc, err := h.DB.ListLocationLogsByCourse(ctx, database.ListLocationLogsByCourseParams{
 			ProjectID:  lpID,
@@ -580,6 +576,8 @@ func (h *ProjectHandler) GetCurrentLocation(c echo.Context) error {
 		if err == nil {
 			timings = h.calculateStopTimings(logsAsc, stops, arrivalThresholdM, stayMinutes, speedLimitKmh)
 		}
+
+		currentLocation = h.calculateCurrentSection(logsDesc, stops, arrivalThresholdM, timings)
 	}
 
 	// 部分レンダリング（現在位置セクション＋テーブル）
@@ -612,6 +610,16 @@ func (h *ProjectHandler) ShowStop(c echo.Context) error {
 		arrivalThresholdM = lp.ArrivalThresholdMeters.Int64
 	}
 
+	// 判定設定を取得
+	stayMinutes := int64(0)
+	if lp.JudgeStayTimeMinutes.Valid {
+		stayMinutes = lp.JudgeStayTimeMinutes.Int64
+	}
+	speedLimitKmh := 0.0
+	if lp.JudgeSpeedLimitKmh.Valid {
+		speedLimitKmh = lp.JudgeSpeedLimitKmh.Float64
+	}
+
 	stop, err := h.DB.GetRouteStopByID(ctx, stopID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "地点が見つかりません")
@@ -622,10 +630,26 @@ func (h *ProjectHandler) ShowStop(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "地点が見つかりません")
 	}
 
-	// トラック状況を計算
-	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM)
+	// コースの全停車地を取得
+	stops, _ := h.DB.ListRouteStopsByCourse(ctx, database.ListRouteStopsByCourseParams{
+		ProjectID:  lpID,
+		CourseName: courseName,
+	})
 
-	content := components.StopDetail(lpID, courseName, stopID, stop, truckStatus)
+	// 動的計算でtimingsを取得
+	var timings map[int64]*components.StopTiming
+	logsAsc, err := h.DB.ListLocationLogsByCourse(ctx, database.ListLocationLogsByCourseParams{
+		ProjectID:  lpID,
+		CourseName: courseName,
+	})
+	if err == nil && len(logsAsc) > 0 {
+		timings = h.calculateStopTimings(logsAsc, stops, arrivalThresholdM, stayMinutes, speedLimitKmh)
+	}
+
+	// トラック状況を計算
+	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM, timings)
+
+	content := components.StopDetail(lpID, courseName, stopID, stop, truckStatus, timings)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -658,6 +682,16 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 		arrivalThresholdM = lp.ArrivalThresholdMeters.Int64
 	}
 
+	// 判定設定を取得
+	stayMinutes := int64(0)
+	if lp.JudgeStayTimeMinutes.Valid {
+		stayMinutes = lp.JudgeStayTimeMinutes.Int64
+	}
+	speedLimitKmh := 0.0
+	if lp.JudgeSpeedLimitKmh.Valid {
+		speedLimitKmh = lp.JudgeSpeedLimitKmh.Float64
+	}
+
 	stop, err := h.DB.GetRouteStopByID(ctx, stopID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "地点が見つかりません")
@@ -668,8 +702,24 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "地点が見つかりません")
 	}
 
+	// コースの全停車地を取得
+	stops, _ := h.DB.ListRouteStopsByCourse(ctx, database.ListRouteStopsByCourseParams{
+		ProjectID:  lpID,
+		CourseName: courseName,
+	})
+
+	// 動的計算でtimingsを取得
+	var timings map[int64]*components.StopTiming
+	logsAsc, err := h.DB.ListLocationLogsByCourse(ctx, database.ListLocationLogsByCourseParams{
+		ProjectID:  lpID,
+		CourseName: courseName,
+	})
+	if err == nil && len(logsAsc) > 0 {
+		timings = h.calculateStopTimings(logsAsc, stops, arrivalThresholdM, stayMinutes, speedLimitKmh)
+	}
+
 	// トラック状況を計算
-	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM)
+	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM, timings)
 
 	// 部分レンダリング（トラック状況セクションのみ）
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
@@ -677,7 +727,7 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 }
 
 // calculateTruckStatus はトラックの状況を計算する
-func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop, arrivalThresholdM int64) *components.TruckStatusInfo {
+func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop, arrivalThresholdM int64, timings map[int64]*components.StopTiming) *components.TruckStatusInfo {
 	truckStatus := &components.TruckStatusInfo{
 		HasLocation: false,
 	}
@@ -725,10 +775,11 @@ func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, c
 		return truckStatus
 	}
 
-	// 最後に到着した地点を探す
+	// 最後に到着した地点を探す（動的計算結果を使用）
 	lastArrivedIdx := -1
 	for i, s := range stops {
-		if s.Status.String == status.Arrived {
+		timing := timings[s.ID]
+		if timing != nil && timing.Arrived {
 			lastArrivedIdx = i
 		}
 	}
@@ -747,19 +798,18 @@ func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, c
 		truckStatus.LastArrivedStop = stops[lastArrivedIdx].StopName
 		truckStatus.ScheduledTime = stops[lastArrivedIdx].ArrivalTime.String
 
-		// 実績時刻を設定
-		if stops[lastArrivedIdx].ActualArrivalTime.Valid {
-			truckStatus.LastArrivedTime = stops[lastArrivedIdx].ActualArrivalTime.String
-		}
-		if stops[lastArrivedIdx].ActualDepartureTime.Valid {
-			truckStatus.LastDepartedTime = stops[lastArrivedIdx].ActualDepartureTime.String
-		}
+		// 実績時刻を設定（動的計算結果を使用）
+		lastTiming := timings[stops[lastArrivedIdx].ID]
+		if lastTiming != nil {
+			truckStatus.LastArrivedTime = lastTiming.ArrivalTimeStr()
+			truckStatus.LastDepartedTime = lastTiming.DepartureTimeStr()
 
-		// 遅延計算: 予定時刻と実績到着時刻の差
-		if stops[lastArrivedIdx].ArrivalTime.Valid && stops[lastArrivedIdx].ActualArrivalTime.Valid {
-			scheduledMinutes := parseTimeToMinutesOrZero(stops[lastArrivedIdx].ArrivalTime.String)
-			actualMinutes := parseTimeToMinutesOrZero(stops[lastArrivedIdx].ActualArrivalTime.String)
-			truckStatus.DelayMinutes = actualMinutes - scheduledMinutes
+			// 遅延計算: 予定時刻と実績到着時刻の差
+			if stops[lastArrivedIdx].ArrivalTime.Valid && lastTiming.ArrivalTime != nil {
+				scheduledMinutes := parseTimeToMinutesOrZero(stops[lastArrivedIdx].ArrivalTime.String)
+				actualMinutes := parseTimeToMinutesOrZero(lastTiming.ArrivalTimeStr())
+				truckStatus.DelayMinutes = actualMinutes - scheduledMinutes
+			}
 		}
 	}
 
@@ -775,7 +825,7 @@ func parseTimeToMinutesOrZero(timeStr string) int {
 	return minutes
 }
 
-// ResetCourseStatus はコースの全地点のステータスを「未訪問」にリセットする
+// ResetCourseStatus はコースの位置情報ログを削除する
 func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 	if err := h.checkPermission(c); err != nil {
 		return err
@@ -788,16 +838,6 @@ func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 	}
 	courseName := c.Param("course_name")
 
-	// ステータスをリセット
-	err = h.DB.ResetRouteStopsStatusByCourse(ctx, database.ResetRouteStopsStatusByCourseParams{
-		Status:     sql.NullString{String: status.Unvisited, Valid: true},
-		ProjectID:  lpID,
-		CourseName: courseName,
-	})
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("リセット失敗: %v", err))
-	}
-
 	// ログを削除
 	err = h.DB.DeleteLocationLogsByCourse(ctx, database.DeleteLocationLogsByCourseParams{
 		ProjectID:  lpID,
@@ -809,132 +849,6 @@ func (h *ProjectHandler) ResetCourseStatus(c echo.Context) error {
 
 	// PRG: コース詳細ページへリダイレクト
 	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d/courses/%s", lpID, courseName))
-}
-
-// checkAndUpdateArrivalDeparture は現在位置から到着・出発判定を行い、ステータスと実績時刻を更新する
-func (h *ProjectHandler) checkAndUpdateArrivalDeparture(ctx context.Context, project database.Project, logs []database.LocationLog, stops []database.RouteStop) {
-	if len(logs) == 0 {
-		return
-	}
-	latestLog := logs[0]
-
-	// 設定値
-	arrivalThresholdM := int64(100)
-	if project.ArrivalThresholdMeters.Valid {
-		arrivalThresholdM = project.ArrivalThresholdMeters.Int64
-	}
-	arrivalThresholdKm := float64(arrivalThresholdM) / 1000.0
-
-	judgeStayMinutes := int64(0)
-	if project.JudgeStayTimeMinutes.Valid {
-		judgeStayMinutes = project.JudgeStayTimeMinutes.Int64
-	}
-
-	judgeSpeedLimit := 0.0
-	if project.JudgeSpeedLimitKmh.Valid {
-		judgeSpeedLimit = project.JudgeSpeedLimitKmh.Float64
-	}
-
-	// JSTに変換して時刻文字列を生成
-	jst := time.FixedZone("Asia/Tokyo", 9*60*60)
-	logTimeStr := latestLog.Timestamp.In(jst).Format("15:04")
-
-	for _, stop := range stops {
-		// 座標がない地点はスキップ
-		if !stop.Latitude.Valid || !stop.Longitude.Valid {
-			continue
-		}
-
-		// 距離を計算
-		dist := geo.Haversine(latestLog.Latitude, latestLog.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
-		isWithinRange := dist < arrivalThresholdKm
-
-		if stop.Status.String != status.Arrived {
-			// 未到着の地点
-			if isWithinRange {
-				// 到着判定
-				isArrived := true
-				arrivalTime := latestLog.Timestamp // デフォルトは最新ログの時刻
-
-				// 詳細判定が有効な場合 (滞在時間 > 0)
-				if judgeStayMinutes > 0 {
-					var enteredTime time.Time
-					isArrived, enteredTime = h.checkStayCondition(logs, stop, arrivalThresholdKm, judgeSpeedLimit, judgeStayMinutes)
-					if isArrived {
-						arrivalTime = enteredTime // エリアに入った時刻を使用
-					}
-				}
-
-				if isArrived {
-					// 範囲内に入った（かつ詳細条件クリア） → 到着（出発時刻はクリア）
-					arrivalTimeStr := arrivalTime.In(jst).Format("15:04")
-					_ = h.DB.UpdateRouteStopArrival(ctx, database.UpdateRouteStopArrivalParams{
-						Status:            sql.NullString{String: status.Arrived, Valid: true},
-						ActualArrivalTime: sql.NullString{String: arrivalTimeStr, Valid: true},
-						ID:                stop.ID,
-					})
-				}
-			}
-		} else {
-			// 到着済みの地点
-			if !stop.ActualDepartureTime.Valid || stop.ActualDepartureTime.String == "" {
-				// 出発時刻がまだない
-				if !isWithinRange {
-					// 範囲外に出た → 出発
-					_ = h.DB.UpdateRouteStopDeparture(ctx, database.UpdateRouteStopDepartureParams{
-						ActualDepartureTime: sql.NullString{String: logTimeStr, Valid: true},
-						ID:                  stop.ID,
-					})
-				}
-			} else {
-				// 出発時刻がある
-				if isWithinRange {
-					// 範囲内に戻ってきた → 出発取り消し
-					_ = h.DB.ClearRouteStopDeparture(ctx, stop.ID)
-				}
-			}
-		}
-	}
-}
-
-// checkStayCondition は過去ログを遡って滞在条件（エリア内かつ低速が一定時間継続）を満たすかチェック
-// 戻り値: (条件を満たしたか, エリアに入った時刻)
-func (h *ProjectHandler) checkStayCondition(logs []database.LocationLog, stop database.RouteStop, thresholdKm float64, speedLimit float64, stayMinutes int64) (bool, time.Time) {
-	if len(logs) == 0 {
-		return false, time.Time{}
-	}
-
-	latestTime := logs[0].Timestamp
-	requiredDuration := time.Duration(stayMinutes) * time.Minute
-
-	// 継続時間の計測開始時刻（遡っていく中で、条件を満たし続けている最も古い時刻）
-	oldestValidTime := latestTime
-
-	for i, log := range logs {
-		// 1. 距離チェック
-		dist := geo.Haversine(log.Latitude, log.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
-		if dist >= thresholdKm {
-			// 範囲外に出た時点で、連続滞在記録は途切れる
-			break
-		}
-
-		// 2. 速度チェック (設定されている場合)
-		// スマホの速度は信頼性が低いため、サーバー側でログ間の移動距離から速度を計算
-		if speedLimit > 0 && i > 0 {
-			prevLog := logs[i-1]
-			calcSpeed := h.calculateSpeedBetweenLogs(log, prevLog)
-			if calcSpeed > speedLimit {
-				break
-			}
-		}
-
-		// 条件を満たすログなので、時刻を更新
-		oldestValidTime = log.Timestamp
-	}
-
-	// ループ終了後に最終チェック（全ログが条件を満たした場合にも対応）
-	duration := latestTime.Sub(oldestValidTime)
-	return duration >= requiredDuration, oldestValidTime
 }
 
 // calculateSpeedBetweenLogs は2つのログ間の移動速度を計算する（km/h）
@@ -953,7 +867,7 @@ func (h *ProjectHandler) calculateSpeedBetweenLogs(older, newer database.Locatio
 }
 
 // calculateCurrentSection は現在位置から走行中の区間を計算する
-func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, stops []database.RouteStop, thresholdM int64) *components.CurrentLocationInfo {
+func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, stops []database.RouteStop, thresholdM int64, timings map[int64]*components.StopTiming) *components.CurrentLocationInfo {
 	if len(logs) == 0 {
 		return nil
 	}
@@ -966,10 +880,11 @@ func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, st
 		ThresholdM: thresholdM,
 	}
 
-	// 積載重量を計算
+	// 積載重量を計算（動的計算結果を使用）
 	var currentLoad int64
 	for _, stop := range stops {
-		if stop.Status.String == status.Arrived && stop.WeightKg.Valid {
+		timing := timings[stop.ID]
+		if timing != nil && timing.Arrived && stop.WeightKg.Valid {
 			currentLoad += stop.WeightKg.Int64
 		}
 	}
@@ -980,10 +895,11 @@ func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, st
 		info.SpeedMps = loc.Speed.Float64
 	}
 
-	// 到着済みの最後の地点を探す（出発地点）
+	// 到着済みの最後の地点を探す（出発地点）- 動的計算結果を使用
 	lastArrivedIdx := -1
 	for i, stop := range stops {
-		if stop.Status.String == status.Arrived {
+		timing := timings[stop.ID]
+		if timing != nil && timing.Arrived {
 			lastArrivedIdx = i
 		}
 	}
@@ -994,10 +910,11 @@ func (h *ProjectHandler) calculateCurrentSection(logs []database.LocationLog, st
 		info.FromStopIdx = lastArrivedIdx
 	}
 
-	// 次の未到着地点を探す（目的地点）
+	// 次の未到着地点を探す（目的地点）- 動的計算結果を使用
 	nextStopIdx := -1
 	for i, stop := range stops {
-		if stop.Status.String != status.Arrived {
+		timing := timings[stop.ID]
+		if timing == nil || !timing.Arrived {
 			nextStopIdx = i
 			break
 		}
@@ -1176,7 +1093,6 @@ type RouteStop struct {
 	Longitude        float64
 	StayMinutes      int64
 	WeightKg         int64
-	Status           string
 	PhoneNumber      string
 	Note1            string
 	Note2            string
@@ -1233,7 +1149,6 @@ func parseCP932CSV(file multipart.File, hasHeader bool) ([]RouteStop, error) {
 			Longitude:        longitude,
 			StayMinutes:      stayMinutes,
 			WeightKg:         weightKg,
-			Status:           record[9],
 			PhoneNumber:      record[11],
 			Note1:            record[12],
 			Note2:            record[13],

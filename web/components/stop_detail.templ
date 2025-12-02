@@ -3,7 +3,6 @@ package components
 import (
 	"fmt"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
-	"github.com/naozine/project_crud_with_auth_tmpl/internal/status"
 )
 
 // TruckStatusInfo はトラックの現在状況（この地点から見た）
@@ -116,7 +115,7 @@ templ StopTruckStatus(truckStatus *TruckStatusInfo) {
 }
 
 // StopDetail は地点詳細ページのコンポーネント
-templ StopDetail(projectID int64, courseName string, stopID int64, stop database.RouteStop, truckStatus *TruckStatusInfo) {
+templ StopDetail(projectID int64, courseName string, stopID int64, stop database.RouteStop, truckStatus *TruckStatusInfo, timings map[int64]*StopTiming) {
 	<div class="max-w-3xl mx-auto">
 		<div class="mb-4">
 			<a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s", projectID, courseName)) }
@@ -162,8 +161,8 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 					<div>
 						<dt class="text-sm font-medium text-gray-500">到着実績</dt>
 						<dd class="mt-1 text-sm font-bold text-gray-900">
-							if stop.ActualArrivalTime.Valid && stop.ActualArrivalTime.String != "" {
-								{ stop.ActualArrivalTime.String }
+							if timings[stop.ID] != nil && timings[stop.ID].ArrivalTimeStr() != "" {
+								{ timings[stop.ID].ArrivalTimeStr() }
 							} else {
 								<span class="text-gray-400 font-normal">-</span>
 							}
@@ -174,13 +173,13 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 					<div>
 						<dt class="text-sm font-medium text-gray-500">ステータス</dt>
 						<dd class="mt-1 text-sm">
-							if stop.Status.Valid && stop.Status.String == status.Arrived {
+							if timings[stop.ID] != nil && timings[stop.ID].Arrived {
 								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-									✓ { status.Arrived }
+									✓ 到着済
 								</span>
 							} else {
 								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-									{ stop.Status.String }
+									未訪問
 								</span>
 							}
 						</dd>
@@ -232,7 +231,11 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 					<div>
 						<dt class="text-sm font-medium text-gray-500">滞在実績</dt>
 						<dd class="mt-1 text-sm font-bold text-gray-900">
-							{ CalculateStayDuration(stop.ActualArrivalTime.String, stop.ActualDepartureTime.String) }
+							if timings[stop.ID] != nil {
+								{ timings[stop.ID].StayDurationStr() }
+							} else {
+								<span class="text-gray-400 font-normal">-</span>
+							}
 						</dd>
 					</div>
 
@@ -240,8 +243,8 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 					<div>
 						<dt class="text-sm font-medium text-gray-500">出発実績</dt>
 						<dd class="mt-1 text-sm font-bold text-gray-900">
-							if stop.ActualDepartureTime.Valid && stop.ActualDepartureTime.String != "" {
-								{ stop.ActualDepartureTime.String }
+							if timings[stop.ID] != nil && timings[stop.ID].DepartureTimeStr() != "" {
+								{ timings[stop.ID].DepartureTimeStr() }
 							} else {
 								<span class="text-gray-400 font-normal">-</span>
 							}
