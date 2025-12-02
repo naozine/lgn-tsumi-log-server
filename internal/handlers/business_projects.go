@@ -573,10 +573,16 @@ func (h *ProjectHandler) ShowStop(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な地点ID")
 	}
 
-	// 物流案件の存在確認
-	_, err = h.DB.GetProject(ctx, lpID)
+	// 物流案件を取得
+	lp, err := h.DB.GetProject(ctx, lpID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
+	}
+
+	// 到着判定の閾値を取得（デフォルト100m）
+	arrivalThresholdM := int64(100)
+	if lp.ArrivalThresholdMeters.Valid {
+		arrivalThresholdM = lp.ArrivalThresholdMeters.Int64
 	}
 
 	stop, err := h.DB.GetRouteStopByID(ctx, stopID)
@@ -590,7 +596,7 @@ func (h *ProjectHandler) ShowStop(c echo.Context) error {
 	}
 
 	// トラック状況を計算
-	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop)
+	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM)
 
 	content := components.StopDetail(lpID, courseName, stopID, stop, truckStatus)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
@@ -613,6 +619,18 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "無効な地点ID")
 	}
 
+	// 物流案件を取得
+	lp, err := h.DB.GetProject(ctx, lpID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
+	}
+
+	// 到着判定の閾値を取得（デフォルト100m）
+	arrivalThresholdM := int64(100)
+	if lp.ArrivalThresholdMeters.Valid {
+		arrivalThresholdM = lp.ArrivalThresholdMeters.Int64
+	}
+
 	stop, err := h.DB.GetRouteStopByID(ctx, stopID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "地点が見つかりません")
@@ -624,7 +642,7 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 	}
 
 	// トラック状況を計算
-	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop)
+	truckStatus := h.calculateTruckStatus(ctx, lpID, courseName, stop, arrivalThresholdM)
 
 	// 部分レンダリング（トラック状況セクションのみ）
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
@@ -632,13 +650,13 @@ func (h *ProjectHandler) GetStopTruckStatus(c echo.Context) error {
 }
 
 // calculateTruckStatus はトラックの状況を計算する
-func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop) *components.TruckStatusInfo {
+func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, courseName string, targetStop database.RouteStop, arrivalThresholdM int64) *components.TruckStatusInfo {
 	truckStatus := &components.TruckStatusInfo{
 		HasLocation: false,
 	}
 
-	// 位置情報があるか確認
-	_, err := h.DB.GetLatestLocationByCourse(ctx, database.GetLatestLocationByCourseParams{
+	// 位置情報を取得
+	latestLoc, err := h.DB.GetLatestLocationByCourse(ctx, database.GetLatestLocationByCourseParams{
 		ProjectID:  lpID,
 		CourseName: courseName,
 	})
@@ -646,6 +664,18 @@ func (h *ProjectHandler) calculateTruckStatus(ctx context.Context, lpID int64, c
 		return truckStatus
 	}
 	truckStatus.HasLocation = true
+
+	// この地点までの距離を計算
+	if targetStop.Latitude.Valid && targetStop.Longitude.Valid {
+		truckStatus.DistanceKm = geo.Haversine(
+			latestLoc.Latitude, latestLoc.Longitude,
+			targetStop.Latitude.Float64, targetStop.Longitude.Float64,
+		)
+		// 範囲内判定
+		if truckStatus.DistanceKm*1000 < float64(arrivalThresholdM) {
+			truckStatus.IsWithinRange = true
+		}
+	}
 
 	// コースの全地点を取得
 	stops, err := h.DB.ListRouteStopsByCourse(ctx, database.ListRouteStopsByCourseParams{
