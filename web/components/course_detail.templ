@@ -4,7 +4,6 @@ import (
     "fmt"
     "time"
     "github.com/naozine/project_crud_with_auth_tmpl/internal/database"
-    "github.com/naozine/project_crud_with_auth_tmpl/internal/status"
 )
 
 // JST は日本標準時
@@ -41,7 +40,7 @@ type CurrentLocationInfo struct {
 }
 
 // CourseLocationStatus は現在位置セクション＋テーブルをレンダリング（htmx polling用）
-templ CourseLocationStatus(projectID int64, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo) {
+templ CourseLocationStatus(projectID int64, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo, timings map[int64]*StopTiming) {
     if currentLocation != nil {
         <div class="mb-6 bg-white shadow sm:rounded-lg border border-gray-200 p-4">
             <div class="flex items-center mb-3">
@@ -130,40 +129,7 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
                 </thead>
                 <tbody class="divide-y divide-gray-200 bg-white">
                     for i, stop := range stops {
-                        <tr class={
-                            templ.KV("bg-green-50", stop.Status.String == status.Arrived),
-                            templ.KV("bg-blue-50", currentLocation != nil && i == currentLocation.ToStopIdx && stop.Status.String != status.Arrived),
-                            templ.KV("hover:bg-gray-50", stop.Status.String != status.Arrived && (currentLocation == nil || i != currentLocation.ToStopIdx)),
-                        }>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap">
-                                if stop.Status.String == status.Arrived {
-                                    <span class="mr-1 text-green-600">✓</span>
-                                } else if currentLocation != nil && i == currentLocation.ToStopIdx {
-                                    <span class="mr-1">📍</span>
-                                }
-                                { stop.Sequence }
-                            </td>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ stop.ArrivalTime.String }</td>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap font-bold text-gray-900">
-                                if stop.ActualArrivalTime.Valid && stop.ActualArrivalTime.String != "" {
-                                    { stop.ActualArrivalTime.String }
-                                } else {
-                                    <span class="text-gray-400">-</span>
-                                }
-                            </td>
-                            <td class="px-4 py-3 text-sm font-medium">
-                                <a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/stops/%d", projectID, courseName, stop.ID)) }
-                                   class="text-blue-600 hover:text-blue-800 hover:underline">
-                                    { stop.StopName }
-                                </a>
-                            </td>
-                            <td class="px-4 py-3 text-sm text-gray-600">{ stop.Address.String }</td>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.StayMinutes.Int64) }分</td>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap font-bold text-gray-900">
-                                { CalculateStayDuration(stop.ActualArrivalTime.String, stop.ActualDepartureTime.String) }
-                            </td>
-                            <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.WeightKg.Int64) }kg</td>
-                        </tr>
+                        @courseStopRow(projectID, courseName, i, stop, currentLocation, timings[stop.ID])
                     }
                 </tbody>
             </table>
@@ -171,7 +137,49 @@ templ CourseLocationStatus(projectID int64, courseName string, stops []database.
     </div>
 }
 
-templ CourseDetail(project database.Project, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo) {
+// courseStopRow は停車地テーブルの1行をレンダリング
+templ courseStopRow(projectID int64, courseName string, idx int, stop database.RouteStop, currentLocation *CurrentLocationInfo, timing *StopTiming) {
+    <tr class={
+        templ.KV("bg-green-50", timing != nil && timing.Arrived),
+        templ.KV("bg-blue-50", currentLocation != nil && idx == currentLocation.ToStopIdx && (timing == nil || !timing.Arrived)),
+        templ.KV("hover:bg-gray-50", (timing == nil || !timing.Arrived) && (currentLocation == nil || idx != currentLocation.ToStopIdx)),
+    }>
+        <td class="px-4 py-3 text-sm whitespace-nowrap">
+            if timing != nil && timing.Arrived {
+                <span class="mr-1 text-green-600">✓</span>
+            } else if currentLocation != nil && idx == currentLocation.ToStopIdx {
+                <span class="mr-1">📍</span>
+            }
+            { stop.Sequence }
+        </td>
+        <td class="px-4 py-3 text-sm whitespace-nowrap">{ stop.ArrivalTime.String }</td>
+        <td class="px-4 py-3 text-sm whitespace-nowrap font-bold text-gray-900">
+            if timing != nil && timing.ArrivalTimeStr() != "" {
+                { timing.ArrivalTimeStr() }
+            } else {
+                <span class="text-gray-400">-</span>
+            }
+        </td>
+        <td class="px-4 py-3 text-sm font-medium">
+            <a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/stops/%d", projectID, courseName, stop.ID)) }
+               class="text-blue-600 hover:text-blue-800 hover:underline">
+                { stop.StopName }
+            </a>
+        </td>
+        <td class="px-4 py-3 text-sm text-gray-600">{ stop.Address.String }</td>
+        <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.StayMinutes.Int64) }分</td>
+        <td class="px-4 py-3 text-sm whitespace-nowrap font-bold text-gray-900">
+            if timing != nil {
+                { timing.StayDurationStr() }
+            } else {
+                <span class="text-gray-400">-</span>
+            }
+        </td>
+        <td class="px-4 py-3 text-sm whitespace-nowrap">{ fmt.Sprintf("%d", stop.WeightKg.Int64) }kg</td>
+    </tr>
+}
+
+templ CourseDetail(project database.Project, courseName string, stops []database.RouteStop, currentLocation *CurrentLocationInfo, timings map[int64]*StopTiming) {
     <div class="max-w-5xl mx-auto">
         <div class="mb-6">
             <div class="flex items-center mb-2">
@@ -188,7 +196,7 @@ templ CourseDetail(project database.Project, courseName string, stops []database
              hx-get={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/location", project.ID, courseName)) }
              hx-trigger="every 5s"
              hx-swap="innerHTML">
-            @CourseLocationStatus(project.ID, courseName, stops, currentLocation)
+            @CourseLocationStatus(project.ID, courseName, stops, currentLocation, timings)
         </div>
 
         <div class="mt-6 flex items-center justify-between">
@@ -199,10 +207,10 @@ templ CourseDetail(project database.Project, courseName string, stops []database
             <div class="flex items-center gap-4">
                 <form action={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s/reset", project.ID, courseName)) }
                       method="POST"
-                      onsubmit="return confirm('到着ステータスをリセットしますか？');">
+                      onsubmit="return confirm('ログを削除しますか？');">
                     <button type="submit"
                             class="text-sm font-medium text-orange-600 hover:text-orange-800">
-                        ステータスをリセット
+                        ログを削除
                     </button>
                 </form>
                 <a href={ templ.URL(fmt.Sprintf("/projects/%d", project.ID)) }
