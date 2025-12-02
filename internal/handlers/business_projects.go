@@ -846,7 +846,7 @@ func (h *ProjectHandler) checkStayCondition(logs []database.LocationLog, stop da
 	// 継続時間の計測開始時刻（遡っていく中で、条件を満たし続けている最も古い時刻）
 	oldestValidTime := latestTime
 
-	for _, log := range logs {
+	for i, log := range logs {
 		// 1. 距離チェック
 		dist := geo.Haversine(log.Latitude, log.Longitude, stop.Latitude.Float64, stop.Longitude.Float64)
 		if dist >= thresholdKm {
@@ -855,24 +855,37 @@ func (h *ProjectHandler) checkStayCondition(logs []database.LocationLog, stop da
 		}
 
 		// 2. 速度チェック (設定されている場合)
-		if speedLimit > 0 {
-			// 速度情報がない、または速度オーバーならNG
-			if !log.Speed.Valid || log.Speed.Float64*3.6 > speedLimit { // m/s -> km/h
+		// スマホの速度は信頼性が低いため、サーバー側でログ間の移動距離から速度を計算
+		if speedLimit > 0 && i > 0 {
+			prevLog := logs[i-1]
+			calcSpeed := h.calculateSpeedBetweenLogs(log, prevLog)
+			if calcSpeed > speedLimit {
 				break
 			}
 		}
 
 		// 条件を満たすログなので、時刻を更新
 		oldestValidTime = log.Timestamp
-
-		// 3. 時間経過チェック
-		duration := latestTime.Sub(oldestValidTime)
-		if duration >= requiredDuration {
-			return true // 条件達成！
-		}
 	}
 
-	return false
+	// ループ終了後に最終チェック（全ログが条件を満たした場合にも対応）
+	duration := latestTime.Sub(oldestValidTime)
+	return duration >= requiredDuration
+}
+
+// calculateSpeedBetweenLogs は2つのログ間の移動速度を計算する（km/h）
+func (h *ProjectHandler) calculateSpeedBetweenLogs(older, newer database.LocationLog) float64 {
+	// 時間差（秒）
+	timeDiff := newer.Timestamp.Sub(older.Timestamp).Seconds()
+	if timeDiff <= 0 {
+		return 0
+	}
+
+	// 距離（km）
+	distKm := geo.Haversine(older.Latitude, older.Longitude, newer.Latitude, newer.Longitude)
+
+	// 速度（km/h）
+	return (distKm / timeDiff) * 3600
 }
 
 // calculateCurrentSection は現在位置から走行中の区間を計算する
