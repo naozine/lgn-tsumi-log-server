@@ -34,12 +34,25 @@ func (t *StopTiming) DepartureTimeStr() string {
 }
 
 // StayDurationStr は滞在時間を "X分" 形式で返す
+// 出発済みなら確定値、滞在中なら現在時刻までの暫定値を表示
 func (t *StopTiming) StayDurationStr() string {
-	if t.ArrivalTime == nil || t.DepartureTime == nil {
+	if t.ArrivalTime == nil {
 		return "-"
 	}
-	duration := t.DepartureTime.Sub(*t.ArrivalTime)
+	var endTime time.Time
+	if t.DepartureTime != nil {
+		endTime = *t.DepartureTime
+	} else {
+		// 滞在中: 現在時刻までの滞在時間を表示
+		endTime = time.Now()
+	}
+	duration := endTime.Sub(*t.ArrivalTime)
 	return fmt.Sprintf("%d分", int(duration.Minutes()))
+}
+
+// IsStaying は現在滞在中かどうかを返す
+func (t *StopTiming) IsStaying() bool {
+	return t.Arrived && t.DepartureTime == nil
 }
 
 // CalculateStayDuration は到着時刻と出発時刻の差分（分）を計算します
