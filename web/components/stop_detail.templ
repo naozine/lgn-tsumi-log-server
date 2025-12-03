@@ -3,19 +3,20 @@ package components
 import (
 	"fmt"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
-	"github.com/naozine/project_crud_with_auth_tmpl/internal/status"
 )
 
 // TruckStatusInfo はトラックの現在状況（この地点から見た）
 type TruckStatusInfo struct {
-	HasLocation        bool   // 位置情報があるか
-	StopsAway          int    // この地点まであと何地点か（負の場合は通過済み）
-	CurrentStopName    string // トラックが現在いる地点（または直前に通過した地点）
-	DelayMinutes       int    // 予定からの遅れ（正: 遅れ、負: 早い）
-	LastArrivedStop    string // 最後に到着した地点名
-	LastArrivedTime    string // 最後に到着した時刻（実績）
-	LastDepartedTime   string // 最後に到着した地点の出発時刻（実績）
-	ScheduledTime      string // 最後に到着した地点の予定時刻
+	HasLocation        bool    // 位置情報があるか
+	StopsAway          int     // この地点まであと何地点か（負の場合は通過済み）
+	CurrentStopName    string  // トラックが現在いる地点（または直前に通過した地点）
+	DelayMinutes       int     // 予定からの遅れ（正: 遅れ、負: 早い）
+	LastArrivedStop    string  // 最後に到着した地点名
+	LastArrivedTime    string  // 最後に到着した時刻（実績）
+	LastDepartedTime   string  // 最後に到着した地点の出発時刻（実績）
+	ScheduledTime      string  // 最後に到着した地点の予定時刻
+	DistanceKm         float64 // この地点までの距離（km）
+	IsWithinRange      bool    // 判定範囲内かどうか
 }
 
 // StopTruckStatus はトラック状況セクションのみをレンダリング（htmx polling用）
@@ -27,7 +28,7 @@ templ StopTruckStatus(truckStatus *TruckStatusInfo) {
 				<h3 class="text-lg font-semibold text-gray-900">トラック状況</h3>
 			</div>
 
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<!-- 何地点前にいるか -->
 				<div class="bg-gray-50 rounded-lg p-3">
 					<p class="text-xs text-gray-500 mb-1">現在位置</p>
@@ -52,6 +53,26 @@ templ StopTruckStatus(truckStatus *TruckStatusInfo) {
 					} else {
 						<p class="text-sm font-medium text-gray-600">
 							この地点は通過済み（{ fmt.Sprintf("%d", -truckStatus.StopsAway) } つ先へ移動）
+						</p>
+					}
+				</div>
+
+				<!-- この地点までの距離 -->
+				<div class={ "rounded-lg p-3", templ.KV("bg-green-50 border border-green-200", truckStatus.IsWithinRange), templ.KV("bg-gray-50", !truckStatus.IsWithinRange) }>
+					<p class="text-xs text-gray-500 mb-1">この地点までの距離</p>
+					if truckStatus.StopsAway <= 0 {
+						<p class="text-sm font-medium text-green-600">到着済み</p>
+					} else if truckStatus.IsWithinRange {
+						<p class="text-sm font-bold text-green-700">
+							範囲内 ({ fmt.Sprintf("%.0f", truckStatus.DistanceKm * 1000) } m)
+						</p>
+					} else if truckStatus.DistanceKm < 1.0 {
+						<p class="text-sm font-medium text-gray-900">
+							あと <span class="text-lg font-bold text-blue-600">{ fmt.Sprintf("%.0f", truckStatus.DistanceKm * 1000) }</span> m
+						</p>
+					} else {
+						<p class="text-sm font-medium text-gray-900">
+							あと <span class="text-lg font-bold text-blue-600">{ fmt.Sprintf("%.2f", truckStatus.DistanceKm) }</span> km
 						</p>
 					}
 				</div>
@@ -94,7 +115,7 @@ templ StopTruckStatus(truckStatus *TruckStatusInfo) {
 }
 
 // StopDetail は地点詳細ページのコンポーネント
-templ StopDetail(projectID int64, courseName string, stopID int64, stop database.RouteStop, truckStatus *TruckStatusInfo) {
+templ StopDetail(projectID int64, courseName string, stopID int64, stop database.RouteStop, truckStatus *TruckStatusInfo, timings map[int64]*StopTiming) {
 	<div class="max-w-3xl mx-auto">
 		<div class="mb-4">
 			<a href={ templ.URL(fmt.Sprintf("/projects/%d/courses/%s", projectID, courseName)) }
@@ -124,9 +145,9 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 		<div class="bg-white shadow sm:rounded-lg border border-gray-200 overflow-hidden">
 			<div class="px-4 py-5 sm:p-6">
 				<dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-					<!-- 到着時刻 -->
+					<!-- 到着予定 -->
 					<div>
-						<dt class="text-sm font-medium text-gray-500">到着時刻</dt>
+						<dt class="text-sm font-medium text-gray-500">到着予定</dt>
 						<dd class="mt-1 text-sm text-gray-900">
 							if stop.ArrivalTime.Valid && stop.ArrivalTime.String != "" {
 								{ stop.ArrivalTime.String }
@@ -136,17 +157,29 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 						</dd>
 					</div>
 
+					<!-- 到着実績 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">到着実績</dt>
+						<dd class="mt-1 text-sm font-bold text-gray-900">
+							if timings[stop.ID] != nil && timings[stop.ID].ArrivalTimeStr() != "" {
+								{ timings[stop.ID].ArrivalTimeStr() }
+							} else {
+								<span class="text-gray-400 font-normal">-</span>
+							}
+						</dd>
+					</div>
+
 					<!-- ステータス -->
 					<div>
 						<dt class="text-sm font-medium text-gray-500">ステータス</dt>
 						<dd class="mt-1 text-sm">
-							if stop.Status.Valid && stop.Status.String == status.Arrived {
+							if timings[stop.ID] != nil && timings[stop.ID].Arrived {
 								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-									✓ { status.Arrived }
+									✓ 到着済
 								</span>
 							} else {
 								<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-									{ stop.Status.String }
+									未訪問
 								</span>
 							}
 						</dd>
@@ -186,13 +219,39 @@ templ StopDetail(projectID int64, courseName string, stopID int64, stop database
 						</dd>
 					</div>
 
-					<!-- 滞在時間・重量 -->
+					<!-- 滞在予定 -->
 					<div>
-						<dt class="text-sm font-medium text-gray-500">滞在時間</dt>
+						<dt class="text-sm font-medium text-gray-500">滞在予定</dt>
 						<dd class="mt-1 text-sm text-gray-900">
 							{ fmt.Sprintf("%d", stop.StayMinutes.Int64) }分
 						</dd>
 					</div>
+
+					<!-- 滞在実績 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">滞在実績</dt>
+						<dd class="mt-1 text-sm font-bold text-gray-900">
+							if timings[stop.ID] != nil {
+								{ timings[stop.ID].StayDurationStr() }
+							} else {
+								<span class="text-gray-400 font-normal">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 出発実績 -->
+					<div>
+						<dt class="text-sm font-medium text-gray-500">出発実績</dt>
+						<dd class="mt-1 text-sm font-bold text-gray-900">
+							if timings[stop.ID] != nil && timings[stop.ID].DepartureTimeStr() != "" {
+								{ timings[stop.ID].DepartureTimeStr() }
+							} else {
+								<span class="text-gray-400 font-normal">-</span>
+							}
+						</dd>
+					</div>
+
+					<!-- 重量 -->
 					<div>
 						<dt class="text-sm font-medium text-gray-500">重量</dt>
 						<dd class="mt-1 text-sm text-gray-900">

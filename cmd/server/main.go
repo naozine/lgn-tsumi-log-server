@@ -13,6 +13,7 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/database"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/handlers"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/logger"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/mdm"
 	appMiddleware "github.com/naozine/project_crud_with_auth_tmpl/internal/middleware"
 
 	"github.com/joho/godotenv"
@@ -141,7 +142,10 @@ func main() {
 		log.Fatal("Failed to initialize MagicLink:", err)
 	}
 
-	// 3. Initialize Handlers
+	// 3. Initialize MDM Client (optional - works without configuration)
+	mdmClient := initMDMClient()
+
+	// 4. Initialize Handlers
 	queries := database.New(conn)
 	// projectHandler := handlers.NewProjectHandler(queries) // Moved to RegisterBusinessRoutes
 	authHandler := handlers.NewAuthHandler(ml)
@@ -171,7 +175,7 @@ func main() {
 	ml.RegisterHandlers(e)
 
 	// Register Business Logic Routes (e.g., projects)
-	RegisterBusinessRoutes(e, queries, ml)
+	RegisterBusinessRoutes(e, queries, ml, mdmClient)
 
 	// Admin Routes
 	adminGroup := e.Group("/admin")
@@ -250,4 +254,27 @@ func ensureAdminUser(conn *sql.DB) error {
 
 	log.Println("Initial admin user created successfully.")
 	return nil
+}
+
+// initMDMClient はMDMクライアントを初期化する
+// 環境変数が設定されていない場合はnilを返す（MDM機能は無効）
+func initMDMClient() *mdm.Client {
+	clientID := os.Getenv("ZOHO_CLIENT_ID")
+	clientSecret := os.Getenv("ZOHO_CLIENT_SECRET")
+	refreshToken := os.Getenv("ZOHO_REFRESH_TOKEN")
+	accountsURL := os.Getenv("ZOHO_ACCOUNTS_URL")
+	mdmBaseURL := os.Getenv("MDM_API_BASE_URL")
+	cacheTTL := mustAtoi(os.Getenv("MDM_CACHE_TTL_SECONDS"), 300)
+
+	// 必須項目がない場合はnilを返す
+	if clientID == "" || clientSecret == "" || refreshToken == "" || mdmBaseURL == "" {
+		log.Println("MDM configuration not found. MDM features will be disabled.")
+		return nil
+	}
+
+	oauth := mdm.NewZohoOAuthClient(clientID, clientSecret, refreshToken, accountsURL)
+	client := mdm.NewClient(mdmBaseURL, oauth, cacheTTL)
+
+	log.Printf("MDM client initialized (base URL: %s, cache TTL: %ds)", mdmBaseURL, cacheTTL)
+	return client
 }

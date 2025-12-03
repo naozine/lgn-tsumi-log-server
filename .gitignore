@@ -32,3 +32,4 @@ deploy.config
 # ==========================================
 # Add your project-specific ignores here
 /my-local-data.csv
+/data/

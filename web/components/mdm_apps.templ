@@ -1,0 +1,90 @@
+package components
+
+import (
+	"fmt"
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/mdm"
+)
+
+// MDMAppList はMDMアプリ一覧を表示する
+templ MDMAppList(apps []mdm.App) {
+	<div class="max-w-6xl mx-auto">
+		<div class="mb-4">
+			<a href="/mdm" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+				← MDM管理に戻る
+			</a>
+		</div>
+
+		<div class="mb-8">
+			<h2 class="text-2xl font-bold tracking-tight text-gray-900">MDMアプリ一覧</h2>
+			<p class="mt-1 text-sm text-gray-500">
+				MDMに登録されたアプリケーション
+			</p>
+		</div>
+
+		if len(apps) == 0 {
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+				<div class="px-4 py-12 text-center">
+					<p class="text-gray-500">登録されているアプリはありません。</p>
+				</div>
+			</div>
+		} else {
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200 overflow-hidden">
+				<table class="min-w-full divide-y divide-gray-200">
+					<thead class="bg-gray-50">
+						<tr>
+							<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								アプリ
+							</th>
+							<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								種別
+							</th>
+							<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								バージョン
+							</th>
+							<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+								追加日
+							</th>
+						</tr>
+					</thead>
+					<tbody class="bg-white divide-y divide-gray-200">
+						for _, app := range apps {
+							<tr class="hover:bg-gray-50">
+								<td class="px-4 py-4">
+									<div class="flex items-center">
+										if app.Icon != "" {
+											<img src={ app.Icon } alt="" class="w-10 h-10 rounded-lg mr-3"/>
+										} else {
+											<span class="text-2xl mr-3">{ app.PlatformIcon() }</span>
+										}
+										<div>
+											<div class="text-sm font-medium text-gray-900">{ app.AppName }</div>
+											if app.AppCategory != "" {
+												<div class="text-xs text-gray-500">{ app.AppCategory }</div>
+											}
+										</div>
+									</div>
+								</td>
+								<td class="px-4 py-4 whitespace-nowrap">
+									<div class="flex items-center">
+										<span class="mr-1">{ app.PlatformIcon() }</span>
+										<span class="text-sm text-gray-900">{ app.PlatformString() }</span>
+									</div>
+									<div class="text-xs text-gray-500">{ app.AppTypeString() }</div>
+								</td>
+								<td class="px-4 py-4 whitespace-nowrap">
+									<span class="text-sm text-gray-900">{ app.Version }</span>
+								</td>
+								<td class="px-4 py-4 whitespace-nowrap">
+									<span class="text-sm text-gray-500">{ app.AddedTimeFormatted() }</span>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-4 text-sm text-gray-500 text-right">
+				{ fmt.Sprintf("%d", len(apps)) } 個のアプリ
+			</div>
+		}
+	</div>
+}

@@ -6,7 +6,7 @@ import (
     "github.com/naozine/project_crud_with_auth_tmpl/internal/appcontext"
 )
 
-templ ProjectDetail(lp database.Project) {
+templ ProjectDetail(lp database.Project, devices []database.Device, courses []string) {
     {{
         userRole := appcontext.GetUserRole(ctx)
     }}
@@ -33,9 +33,16 @@ templ ProjectDetail(lp database.Project) {
         <div class="bg-white shadow sm:rounded-lg border border-gray-200">
             <div class="px-4 py-5 sm:p-6">
                 <h3 class="text-base font-semibold leading-6 text-gray-900">案件設定</h3>
-                <div class="mt-2 text-sm text-gray-500">
-                    <p>到着判定距離: { fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) } m</p>
+                <div class="mt-2 text-sm text-gray-500 space-y-1">
+                    <p>到着判定距離: <span class="font-medium text-gray-900">{ fmt.Sprintf("%d", lp.ArrivalThresholdMeters.Int64) }</span> m</p>
+                    <p>判定滞在時間: <span class="font-medium text-gray-900">{ fmt.Sprintf("%d", lp.JudgeStayTimeMinutes.Int64) }</span> 分</p>
+                    <p>判定速度上限: <span class="font-medium text-gray-900">{ fmt.Sprintf("%.1f", lp.JudgeSpeedLimitKmh.Float64) }</span> km/h</p>
                 </div>
+                if userRole == "admin" || userRole == "editor" {
+                     <div class="mt-6 border-t border-gray-100 pt-4">
+                        @APIKeyDisplay(lp)
+                     </div>
+                }
             </div>
         </div>
 
@@ -74,10 +81,112 @@ templ ProjectDetail(lp database.Project) {
             </div>
         </div>
 
+        <!-- デバイス管理セクション -->
+        <div class="mt-8 bg-white shadow sm:rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-semibold leading-6 text-gray-900">登録デバイス</h3>
+                </div>
+
+                if len(devices) > 0 {
+                    <div class="overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">デバイス</th>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">担当コース</th>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終通信</th>
+                                    if userRole == "admin" || userRole == "editor" {
+                                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                for _, device := range devices {
+                                    <tr>
+                                        <td class="px-3 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900">
+                                                if device.DeviceName.Valid && device.DeviceName.String != "" {
+                                                    { device.DeviceName.String }
+                                                } else {
+                                                    <span class="text-gray-500">（名前なし）</span>
+                                                }
+                                            </div>
+                                            <div class="text-xs text-gray-500 font-mono">{ device.DeviceID }</div>
+                                        </td>
+                                        <td class="px-3 py-4 whitespace-nowrap">
+                                            if userRole == "admin" || userRole == "editor" {
+                                                <form action={ templ.URL(fmt.Sprintf("/projects/%d/devices/%s/assign", lp.ID, device.DeviceID)) } method="POST" class="flex items-center space-x-2">
+                                                    <select name="course_name" class="block w-40 rounded-md border-gray-300 text-sm focus:border-black focus:ring-black">
+                                                        <option value="">-- 未割当 --</option>
+                                                        for _, course := range courses {
+                                                            if device.CourseName.Valid && device.CourseName.String == course {
+                                                                <option value={ course } selected>{ course }</option>
+                                                            } else {
+                                                                <option value={ course }>{ course }</option>
+                                                            }
+                                                        }
+                                                    </select>
+                                                    <button type="submit" class="text-xs text-indigo-600 hover:text-indigo-900">保存</button>
+                                                </form>
+                                            } else {
+                                                if device.CourseName.Valid && device.CourseName.String != "" {
+                                                    <span class="text-sm text-gray-900">{ device.CourseName.String }</span>
+                                                } else {
+                                                    <span class="text-sm text-gray-500">未割当</span>
+                                                }
+                                            }
+                                        </td>
+                                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            if device.LastSeenAt.Valid {
+                                                { device.LastSeenAt.Time.Format("01/02 15:04") }
+                                            } else {
+                                                -
+                                            }
+                                        </td>
+                                        if userRole == "admin" || userRole == "editor" {
+                                            <td class="px-3 py-4 whitespace-nowrap text-right text-sm">
+                                                <form action={ templ.URL(fmt.Sprintf("/projects/%d/devices/%s/delete", lp.ID, device.DeviceID)) } method="POST" onsubmit="return confirm('このデバイスを削除しますか？');" class="inline">
+                                                    <button type="submit" class="text-red-600 hover:text-red-900">削除</button>
+                                                </form>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                } else {
+                    <p class="text-sm text-gray-500">登録されているデバイスはありません。</p>
+                    <p class="text-xs text-gray-400 mt-1">モバイルアプリから POST /api/v1/devices を呼び出すと自動的に登録されます。</p>
+                }
+            </div>
+        </div>
+
         <div class="mt-6">
             <a href="/projects" class="text-sm font-medium text-gray-600 hover:text-gray-900">
                 ← 一覧に戻る
             </a>
         </div>
+    </div>
+}
+
+templ APIKeyDisplay(p database.Project) {
+    <div id="api-key-section">
+        <label class="block text-sm font-medium text-gray-700">プロジェクト共通APIキー</label>
+        <div class="mt-1 flex rounded-md shadow-sm">
+            <div class="relative flex flex-grow items-stretch focus-within:z-10">
+                <input type="text" readonly value={ p.ApiKey } class="block w-full rounded-none rounded-l-md border-gray-300 focus:border-black focus:ring-black sm:text-sm bg-gray-50 text-gray-600 font-mono" />
+            </div>
+            <button hx-post={ fmt.Sprintf("/projects/%d/api-key", p.ID) }
+                    hx-target="#api-key-section"
+                    hx-swap="outerHTML"
+                    hx-confirm="APIキーを再生成しますか？\n古いキーは即座に使用できなくなります。\n登録済みの端末設定を更新する必要があります。"
+                    type="button"
+                    class="relative -ml-px inline-flex items-center space-x-2 rounded-r-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:border-black focus:outline-none focus:ring-1 focus:ring-black">
+                <span>再生成</span>
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-gray-500">このキーはモバイルアプリ（EMM/MDM設定）からのAPIリクエスト認証に使用されます。</p>
     </div>
 }

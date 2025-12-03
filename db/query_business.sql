@@ -2,8 +2,8 @@
 SELECT * FROM projects ORDER BY created_at DESC;
 
 -- name: CreateProject :one
-INSERT INTO projects (name, arrival_threshold_meters)
-VALUES (?, ?)
+INSERT INTO projects (name, api_key, arrival_threshold_meters, judge_stay_time_minutes, judge_speed_limit_kmh)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: GetProject :one
@@ -11,7 +11,7 @@ SELECT * FROM projects WHERE id = ? LIMIT 1;
 
 -- name: UpdateProject :one
 UPDATE projects
-SET name = ?, arrival_threshold_meters = ?, updated_at = CURRENT_TIMESTAMP
+SET name = ?, arrival_threshold_meters = ?, judge_stay_time_minutes = ?, judge_speed_limit_kmh = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 RETURNING *;
 
@@ -28,10 +28,10 @@ RETURNING *;
 INSERT INTO route_stops (
     project_id, course_name, sequence, arrival_time, stop_name,
     address, latitude, longitude, stay_minutes, weight_kg,
-    status, phone_number, note1, note2, note3,
+    phone_number, note1, note2, note3,
     desired_time_start, desired_time_end
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: DeleteRouteStopsByProject :exec
 DELETE FROM route_stops WHERE project_id = ?;
@@ -47,15 +47,20 @@ SELECT * FROM route_stops WHERE id = ? LIMIT 1;
 
 -- name: CreateLocationLog :exec
 INSERT INTO location_logs (
-    project_id, course_name, latitude, longitude, timestamp,
+    project_id, course_name, device_id, latitude, longitude, timestamp,
     accuracy, speed, bearing, battery_level
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListLocationLogsByCourse :many
 SELECT * FROM location_logs
 WHERE project_id = ? AND course_name = ?
 ORDER BY timestamp;
+
+-- name: ListLocationLogsByCourseDesc :many
+SELECT * FROM location_logs
+WHERE project_id = ? AND course_name = ?
+ORDER BY timestamp DESC;
 
 -- name: GetLatestLocationByCourse :one
 SELECT * FROM location_logs
@@ -63,27 +68,72 @@ WHERE project_id = ? AND course_name = ?
 ORDER BY timestamp DESC
 LIMIT 1;
 
--- name: UpdateRouteStopStatus :exec
-UPDATE route_stops
-SET status = ?, updated_at = CURRENT_TIMESTAMP
-WHERE id = ?;
+-- name: GetProjectByAPIKey :one
+SELECT * FROM projects WHERE api_key = ? LIMIT 1;
 
--- name: ResetRouteStopsStatusByCourse :exec
-UPDATE route_stops 
-SET status = ?, actual_arrival_time = NULL, actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP
+-- name: UpdateProjectAPIKey :one
+UPDATE projects
+SET api_key = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+RETURNING *;
+
+-- name: DeleteLocationLogsByCourse :exec
+DELETE FROM location_logs
 WHERE project_id = ? AND course_name = ?;
 
--- name: UpdateRouteStopArrival :exec
-UPDATE route_stops 
-SET status = ?, actual_arrival_time = ?, actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP 
+-- name: CreatePhotoMetadata :one
+INSERT INTO photo_metadata (
+    project_id, course_name, device_photo_id, latitude, longitude, route_stop_id, taken_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: GetPhotoMetadataByDeviceID :one
+SELECT * FROM photo_metadata
+WHERE project_id = ? AND device_photo_id = ?
+LIMIT 1;
+
+-- name: ListPhotoMetadataByCourse :many
+SELECT * FROM photo_metadata
+WHERE project_id = ? AND course_name = ?
+ORDER BY taken_at;
+
+-- name: ListPhotoMetadataByStop :many
+SELECT * FROM photo_metadata
+WHERE route_stop_id = ?
+ORDER BY taken_at;
+
+-- name: UpdatePhotoSynced :exec
+UPDATE photo_metadata
+SET photo_synced = 1
 WHERE id = ?;
 
--- name: UpdateRouteStopDeparture :exec
-UPDATE route_stops 
-SET actual_departure_time = ?, updated_at = CURRENT_TIMESTAMP 
-WHERE id = ?;
+-- name: CreateDevice :one
+INSERT INTO devices (project_id, device_id, device_name)
+VALUES (?, ?, ?)
+RETURNING *;
 
--- name: ClearRouteStopDeparture :exec
-UPDATE route_stops 
-SET actual_departure_time = NULL, updated_at = CURRENT_TIMESTAMP 
-WHERE id = ?;
+-- name: GetDeviceByDeviceID :one
+SELECT * FROM devices
+WHERE project_id = ? AND device_id = ?
+LIMIT 1;
+
+-- name: ListDevicesByProject :many
+SELECT * FROM devices
+WHERE project_id = ?
+ORDER BY created_at DESC;
+
+-- name: UpdateDeviceCourseName :one
+UPDATE devices
+SET course_name = ?, last_seen_at = CURRENT_TIMESTAMP
+WHERE project_id = ? AND device_id = ?
+RETURNING *;
+
+-- name: UpdateDeviceLastSeen :exec
+UPDATE devices
+SET last_seen_at = CURRENT_TIMESTAMP
+WHERE project_id = ? AND device_id = ?;
+
+-- name: DeleteDevice :exec
+DELETE FROM devices
+WHERE project_id = ? AND device_id = ?;
