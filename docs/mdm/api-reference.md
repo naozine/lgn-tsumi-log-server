@@ -224,8 +224,105 @@ curl -X GET "https://mdm.manageengine.com/api/v1/mdm/devices?search=iPhone" \
 
 ---
 
+---
+
+## アプリ管理 API
+
+### アプリ一覧取得
+
+```
+GET /api/v1/mdm/apps
+```
+
+**OAuth Scope**: `MDMOnDemand.MDMDeviceMgmt.READ`
+
+#### レスポンス
+
+```json
+{
+  "apps": [
+    {
+      "app_id": 123456789,
+      "app_name": "My App",
+      "app_category": "Business",
+      "app_type": 0,
+      "version": "1.0.0",
+      "platform_type": 2,
+      "description": "アプリの説明",
+      "icon": "https://...",
+      "added_time": 1701234567890,
+      "modified_time": 1701234567890,
+      "release_labels": []
+    }
+  ]
+}
+```
+
+#### レスポンスフィールド
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `app_id` | integer | アプリの一意識別子 |
+| `app_name` | string | アプリ名 |
+| `app_category` | string | カテゴリ |
+| `app_type` | integer | 0=無料, 1=有料, 2=エンタープライズ |
+| `version` | string | バージョン |
+| `platform_type` | integer | 1=iOS, 2=Android, 3=Windows |
+| `icon` | string | アイコンURL |
+| `added_time` | integer | 追加日時（Unix時間ミリ秒） |
+| `release_labels` | array | リリースラベル（バージョン管理用） |
+
+### アプリをデバイスに配布
+
+```
+POST /api/v1/mdm/apps/{app_id}/labels/{release_label_id}/devices
+```
+
+**OAuth Scope**: `MDMOnDemand.MDMDeviceMgmt.CREATE`
+
+#### リクエストボディ
+
+```json
+{
+  "device_ids": [123456, 789012],
+  "silent_install": true,
+  "notify_user_via_email": false
+}
+```
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `device_ids` | array | ✓ | デバイスIDの配列 |
+| `silent_install` | boolean | - | サイレントインストール（ユーザー操作不要） |
+| `notify_user_via_email` | boolean | - | メール通知を送信 |
+
+#### レスポンス
+
+成功時: `HTTP 202 Accepted`
+
+### アプリをグループに配布
+
+```
+POST /api/v1/mdm/apps/{app_id}/labels/{release_label_id}/groups
+```
+
+**OAuth Scope**: `MDMOnDemand.MDMDeviceMgmt.CREATE`
+
+#### リクエストボディ
+
+```json
+{
+  "group_ids": [111, 222],
+  "silent_install": true,
+  "notify_user_via_email": false
+}
+```
+
+---
+
 ## 参考リンク
 
 - [Zoho OAuth 2.0 ドキュメント](https://www.zoho.com/accounts/protocol/oauth.html)
 - [Zoho API Console](https://api-console.zoho.com/)
 - [ManageEngine MDM 製品ページ](https://www.manageengine.com/mobile-device-management/)
+- [ManageEngine MDM Apps API](https://www.manageengine.com/mobile-device-management/api/apps/)

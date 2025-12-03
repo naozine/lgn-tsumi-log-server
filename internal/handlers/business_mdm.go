@@ -68,3 +68,30 @@ func (h *MDMHandler) ListMDMDevices(c echo.Context) error {
 	c.Response().WriteHeader(http.StatusOK)
 	return layouts.Base("MDMデバイス一覧", content).Render(ctx, c.Response().Writer)
 }
+
+// ListMDMApps はMDMに登録されたアプリ一覧を表示する
+func (h *MDMHandler) ListMDMApps(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// MDMが設定されていない場合
+	if h.MDM == nil || !h.MDM.IsConfigured() {
+		content := components.MDMNotConfigured()
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+		return layouts.Base("MDM管理", content).Render(ctx, c.Response().Writer)
+	}
+
+	// アプリ一覧を取得
+	apps, err := h.MDM.ListApps(ctx)
+	if err != nil {
+		content := components.MDMError(err.Error())
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+		return layouts.Base("MDMアプリ一覧", content).Render(ctx, c.Response().Writer)
+	}
+
+	content := components.MDMAppList(apps)
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+	c.Response().WriteHeader(http.StatusOK)
+	return layouts.Base("MDMアプリ一覧", content).Render(ctx, c.Response().Writer)
+}

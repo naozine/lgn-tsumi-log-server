@@ -67,4 +67,5 @@ func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magicli
 	mdmGroup.Use(appMiddleware.RequireRole("admin"))
 	mdmGroup.GET("", mdmHandler.MDMTop)
 	mdmGroup.GET("/devices", mdmHandler.ListMDMDevices)
+	mdmGroup.GET("/apps", mdmHandler.ListMDMApps)
 }
