@@ -61,3 +61,22 @@ func RequireAuth(ml *magiclink.MagicLink, loginURL string) echo.MiddlewareFunc {
 		}
 	}
 }
+
+// RequireRole は指定されたロールを必須とするミドルウェア。
+// ロールが一致しない場合は403 Forbiddenを返す。
+// RequireAuthの後に使用すること。
+func RequireRole(roles ...string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			userRole := appcontext.GetUserRole(c.Request().Context())
+
+			for _, role := range roles {
+				if userRole == role {
+					return next(c)
+				}
+			}
+
+			return c.String(http.StatusForbidden, "アクセス権限がありません")
+		}
+	}
+}
