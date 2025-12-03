@@ -36,8 +36,22 @@ type LocationData struct {
 }
 
 type LocationRequest struct {
-	CourseName string         `json:"course_name"`
-	Locations  []LocationData `json:"locations"`
+	DeviceID  string         `json:"device_id"`
+	Locations []LocationData `json:"locations"`
+}
+
+// デバイス登録API用の構造体
+type DeviceRegisterRequest struct {
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+}
+
+type DeviceRegisterResponse struct {
+	Success    bool    `json:"success"`
+	DeviceID   string  `json:"device_id,omitempty"`
+	CourseName *string `json:"course_name"`
+	Message    string  `json:"message,omitempty"`
+	Error      string  `json:"error,omitempty"`
 }
 
 // レスポンス用の構造体
@@ -46,6 +60,108 @@ type LocationResponse struct {
 	Recorded int    `json:"recorded,omitempty"`
 	Message  string `json:"message,omitempty"`
 	Error    string `json:"error,omitempty"`
+}
+
+// POST /api/v1/devices
+func (h *LocationHandler) RegisterDevice(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// 1. X-Project-Api-Key ヘッダーからAPIキーを取得
+	apiKey := c.Request().Header.Get("X-Project-Api-Key")
+	if apiKey == "" {
+		return c.JSON(http.StatusUnauthorized, DeviceRegisterResponse{
+			Success: false,
+			Error:   "API key is required",
+		})
+	}
+
+	// 2. APIキーでプロジェクトを検索し認証
+	project, err := h.DB.GetProjectByAPIKey(ctx, apiKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusUnauthorized, DeviceRegisterResponse{
+				Success: false,
+				Error:   "Invalid API key",
+			})
+		}
+		log.Printf("Database error during API key validation: %v", err)
+		return c.JSON(http.StatusInternalServerError, DeviceRegisterResponse{
+			Success: false,
+			Error:   "Internal server error during API key validation",
+		})
+	}
+
+	var req DeviceRegisterRequest
+	if err := c.Bind(&req); err != nil {
+		log.Printf("Bind error: %v", err)
+		return c.JSON(http.StatusBadRequest, DeviceRegisterResponse{
+			Success: false,
+			Error:   "Invalid request format",
+		})
+	}
+
+	// バリデーション
+	if req.DeviceID == "" {
+		return c.JSON(http.StatusBadRequest, DeviceRegisterResponse{
+			Success: false,
+			Error:   "device_id is required",
+		})
+	}
+
+	// 既存デバイスを確認
+	existingDevice, err := h.DB.GetDeviceByDeviceID(ctx, database.GetDeviceByDeviceIDParams{
+		ProjectID: project.ID,
+		DeviceID:  req.DeviceID,
+	})
+	if err == nil {
+		// 既に登録済み - 現在の情報を返す
+		var courseName *string
+		if existingDevice.CourseName.Valid {
+			courseName = &existingDevice.CourseName.String
+		}
+		msg := "Device already registered."
+		if courseName != nil {
+			msg = fmt.Sprintf("Device already registered. Assigned to course: %s", *courseName)
+		} else {
+			msg = "Device already registered. No course assigned yet."
+		}
+		return c.JSON(http.StatusOK, DeviceRegisterResponse{
+			Success:    true,
+			DeviceID:   existingDevice.DeviceID,
+			CourseName: courseName,
+			Message:    msg,
+		})
+	}
+
+	if err != sql.ErrNoRows {
+		log.Printf("Database error: %v", err)
+		return c.JSON(http.StatusInternalServerError, DeviceRegisterResponse{
+			Success: false,
+			Error:   "Failed to check existing device",
+		})
+	}
+
+	// 新規デバイスを登録
+	deviceName := sql.NullString{String: req.DeviceName, Valid: req.DeviceName != ""}
+	device, err := h.DB.CreateDevice(ctx, database.CreateDeviceParams{
+		ProjectID:  project.ID,
+		DeviceID:   req.DeviceID,
+		DeviceName: deviceName,
+	})
+	if err != nil {
+		log.Printf("Failed to create device: %v", err)
+		return c.JSON(http.StatusInternalServerError, DeviceRegisterResponse{
+			Success: false,
+			Error:   "Failed to register device",
+		})
+	}
+
+	return c.JSON(http.StatusOK, DeviceRegisterResponse{
+		Success:    true,
+		DeviceID:   device.DeviceID,
+		CourseName: nil,
+		Message:    "Device registered. No course assigned yet.",
+	})
 }
 
 // POST /api/v1/locations
@@ -87,11 +203,10 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 	}
 
 	// バリデーション
-	// req.ProjectIDはAPIキーで認証されたものを使用するため、クライアントからの値は無視し、バリデーションも不要
-	if req.CourseName == "" {
+	if req.DeviceID == "" {
 		return c.JSON(http.StatusBadRequest, LocationResponse{
 			Success: false,
-			Error:   "course_name is required",
+			Error:   "device_id is required",
 		})
 	}
 
@@ -102,7 +217,38 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 		})
 	}
 
-	// 物流案件の存在確認 (APIキーで既に認証済みのため、既存のGetProjectの呼び出しは不要)
+	// 3. device_id からコース名を取得
+	device, err := h.DB.GetDeviceByDeviceID(ctx, database.GetDeviceByDeviceIDParams{
+		ProjectID: project.ID,
+		DeviceID:  req.DeviceID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, LocationResponse{
+				Success: false,
+				Error:   "Device not found. Register device first using POST /api/v1/devices",
+			})
+		}
+		log.Printf("Database error: %v", err)
+		return c.JSON(http.StatusInternalServerError, LocationResponse{
+			Success: false,
+			Error:   "Failed to retrieve device",
+		})
+	}
+
+	if !device.CourseName.Valid || device.CourseName.String == "" {
+		return c.JSON(http.StatusBadRequest, LocationResponse{
+			Success: false,
+			Error:   "No course assigned to this device",
+		})
+	}
+	courseName := device.CourseName.String
+
+	// 最終通信日時を更新
+	_ = h.DB.UpdateDeviceLastSeen(ctx, database.UpdateDeviceLastSeenParams{
+		ProjectID: project.ID,
+		DeviceID:  req.DeviceID,
+	})
 
 	// 各位置情報を保存
 	recorded := 0
@@ -133,8 +279,8 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 
 		// データベースに挿入
 		err = h.DB.CreateLocationLog(ctx, database.CreateLocationLogParams{
-			ProjectID:    project.ID, // ここをAPIキーで認証されたproject.IDに変更
-			CourseName:   req.CourseName,
+			ProjectID:    project.ID,
+			CourseName:   courseName,
 			Latitude:     loc.Latitude,
 			Longitude:    loc.Longitude,
 			Timestamp:    timestamp,
@@ -169,7 +315,7 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 
 // 写真メタデータAPI用の構造体
 type PhotoMetadataRequest struct {
-	CourseName    string  `json:"course_name"`
+	DeviceID      string  `json:"device_id"`
 	DevicePhotoID string  `json:"device_photo_id"`
 	Latitude      float64 `json:"latitude"`
 	Longitude     float64 `json:"longitude"`
@@ -233,10 +379,10 @@ func (h *LocationHandler) CreatePhotoMetadata(c echo.Context) error {
 	}
 
 	// バリデーション
-	if req.CourseName == "" {
+	if req.DeviceID == "" {
 		return c.JSON(http.StatusBadRequest, PhotoMetadataResponse{
 			Success: false,
-			Error:   "course_name is required",
+			Error:   "device_id is required",
 		})
 	}
 	if req.DevicePhotoID == "" {
@@ -245,6 +391,39 @@ func (h *LocationHandler) CreatePhotoMetadata(c echo.Context) error {
 			Error:   "device_photo_id is required",
 		})
 	}
+
+	// 3. device_id からコース名を取得
+	device, err := h.DB.GetDeviceByDeviceID(ctx, database.GetDeviceByDeviceIDParams{
+		ProjectID: project.ID,
+		DeviceID:  req.DeviceID,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, PhotoMetadataResponse{
+				Success: false,
+				Error:   "Device not found. Register device first using POST /api/v1/devices",
+			})
+		}
+		log.Printf("Database error: %v", err)
+		return c.JSON(http.StatusInternalServerError, PhotoMetadataResponse{
+			Success: false,
+			Error:   "Failed to retrieve device",
+		})
+	}
+
+	if !device.CourseName.Valid || device.CourseName.String == "" {
+		return c.JSON(http.StatusBadRequest, PhotoMetadataResponse{
+			Success: false,
+			Error:   "No course assigned to this device",
+		})
+	}
+	courseName := device.CourseName.String
+
+	// 最終通信日時を更新
+	_ = h.DB.UpdateDeviceLastSeen(ctx, database.UpdateDeviceLastSeenParams{
+		ProjectID: project.ID,
+		DeviceID:  req.DeviceID,
+	})
 
 	// タイムスタンプのパース
 	takenAt, err := time.Parse(time.RFC3339, req.TakenAt)
@@ -258,7 +437,7 @@ func (h *LocationHandler) CreatePhotoMetadata(c echo.Context) error {
 	// 該当コースの停車地一覧を取得
 	stops, err := h.DB.ListRouteStopsByCourse(ctx, database.ListRouteStopsByCourseParams{
 		ProjectID:  project.ID,
-		CourseName: req.CourseName,
+		CourseName: courseName,
 	})
 	if err != nil {
 		log.Printf("Failed to get route stops: %v", err)
@@ -308,7 +487,7 @@ func (h *LocationHandler) CreatePhotoMetadata(c echo.Context) error {
 	// 写真メタデータをDBに保存
 	photo, err := h.DB.CreatePhotoMetadata(ctx, database.CreatePhotoMetadataParams{
 		ProjectID:     project.ID,
-		CourseName:    req.CourseName,
+		CourseName:    courseName,
 		DevicePhotoID: req.DevicePhotoID,
 		Latitude:      req.Latitude,
 		Longitude:     req.Longitude,

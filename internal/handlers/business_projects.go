@@ -134,7 +134,19 @@ func (h *ProjectHandler) ShowProject(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "物流案件が見つかりません")
 	}
 
-	content := components.ProjectDetail(lp)
+	// デバイス一覧を取得
+	devices, err := h.DB.ListDevicesByProject(ctx, lpID)
+	if err != nil {
+		devices = []database.Device{}
+	}
+
+	// コース一覧を取得（デバイス割り当て用）
+	courses, err := h.DB.ListCoursesByProject(ctx, lpID)
+	if err != nil {
+		courses = []string{}
+	}
+
+	content := components.ProjectDetail(lp, devices, courses)
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	if c.Request().Header.Get("HX-Request") == "true" {
 		return content.Render(ctx, c.Response().Writer)
@@ -267,6 +279,66 @@ func (h *ProjectHandler) RegenerateAPIKey(c echo.Context) error {
 
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTML)
 	return components.APIKeyDisplay(project).Render(ctx, c.Response().Writer)
+}
+
+// AssignDeviceCourse はデバイスにコースを割り当てる
+func (h *ProjectHandler) AssignDeviceCourse(c echo.Context) error {
+	if err := h.checkPermission(c); err != nil {
+		return err
+	}
+	ctx := c.Request().Context()
+
+	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
+	}
+
+	deviceID := c.Param("device_id")
+	if deviceID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "無効なデバイスID")
+	}
+
+	courseName := c.FormValue("course_name")
+	courseNameNull := sql.NullString{String: courseName, Valid: courseName != ""}
+
+	_, err = h.DB.UpdateDeviceCourseName(ctx, database.UpdateDeviceCourseNameParams{
+		CourseName: courseNameNull,
+		ProjectID:  lpID,
+		DeviceID:   deviceID,
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "コースの割り当てに失敗しました")
+	}
+
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d", lpID))
+}
+
+// DeleteDevice はデバイスを削除する
+func (h *ProjectHandler) DeleteDevice(c echo.Context) error {
+	if err := h.checkPermission(c); err != nil {
+		return err
+	}
+	ctx := c.Request().Context()
+
+	lpID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "無効な案件ID")
+	}
+
+	deviceID := c.Param("device_id")
+	if deviceID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "無効なデバイスID")
+	}
+
+	err = h.DB.DeleteDevice(ctx, database.DeleteDeviceParams{
+		ProjectID: lpID,
+		DeviceID:  deviceID,
+	})
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "デバイスの削除に失敗しました")
+	}
+
+	return c.Redirect(http.StatusSeeOther, fmt.Sprintf("/projects/%d", lpID))
 }
 
 // UploadRoutesPage はCSVアップロードページを表示

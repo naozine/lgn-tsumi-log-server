@@ -47,9 +47,14 @@ func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magicli
 	projectGroup.GET("/:id/courses/:course_name/stops/:stop_id", projectHandler.ShowStop)
 	projectGroup.GET("/:id/courses/:course_name/stops/:stop_id/status", projectHandler.GetStopTruckStatus) // htmx polling
 
+	// Device Management
+	projectGroup.POST("/:id/devices/:device_id/assign", projectHandler.AssignDeviceCourse)
+	projectGroup.POST("/:id/devices/:device_id/delete", projectHandler.DeleteDevice)
+
 	// API Routes (for external clients like mobile apps)
 	apiGroup := e.Group("/api/v1")
 	// Note: API authentication (e.g., API Key, Bearer Token) would typically be added here
+	apiGroup.POST("/devices", locationHandler.RegisterDevice)
 	apiGroup.POST("/locations", locationHandler.CreateLocations)
 	apiGroup.POST("/photos", locationHandler.CreatePhotoMetadata)
 	apiGroup.POST("/photos/upload", locationHandler.UploadPhoto)

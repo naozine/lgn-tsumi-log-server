@@ -79,3 +79,19 @@ CREATE TABLE IF NOT EXISTS photo_metadata (
 CREATE INDEX IF NOT EXISTS idx_photo_metadata_project_course ON photo_metadata(project_id, course_name);
 CREATE INDEX IF NOT EXISTS idx_photo_metadata_stop ON photo_metadata(route_stop_id);
 CREATE INDEX IF NOT EXISTS idx_photo_metadata_device_photo ON photo_metadata(project_id, device_photo_id);
+
+-- デバイス管理
+CREATE TABLE IF NOT EXISTS devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    device_id TEXT NOT NULL,
+    device_name TEXT,
+    course_name TEXT,
+    last_seen_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    UNIQUE(project_id, device_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_devices_project ON devices(project_id);
+CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(project_id, device_id);

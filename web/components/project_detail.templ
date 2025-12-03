@@ -6,7 +6,7 @@ import (
     "github.com/naozine/project_crud_with_auth_tmpl/internal/appcontext"
 )
 
-templ ProjectDetail(lp database.Project) {
+templ ProjectDetail(lp database.Project, devices []database.Device, courses []string) {
     {{
         userRole := appcontext.GetUserRole(ctx)
     }}
@@ -77,6 +77,88 @@ templ ProjectDetail(lp database.Project) {
                     </a>
                 } else {
                     <p class="text-sm text-gray-500">まだ配送ルートがアップロードされていません。</p>
+                }
+            </div>
+        </div>
+
+        <!-- デバイス管理セクション -->
+        <div class="mt-8 bg-white shadow sm:rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-base font-semibold leading-6 text-gray-900">登録デバイス</h3>
+                </div>
+
+                if len(devices) > 0 {
+                    <div class="overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">デバイス</th>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">担当コース</th>
+                                    <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">最終通信</th>
+                                    if userRole == "admin" || userRole == "editor" {
+                                        <th scope="col" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                for _, device := range devices {
+                                    <tr>
+                                        <td class="px-3 py-4 whitespace-nowrap">
+                                            <div class="text-sm font-medium text-gray-900">
+                                                if device.DeviceName.Valid && device.DeviceName.String != "" {
+                                                    { device.DeviceName.String }
+                                                } else {
+                                                    <span class="text-gray-500">（名前なし）</span>
+                                                }
+                                            </div>
+                                            <div class="text-xs text-gray-500 font-mono">{ device.DeviceID }</div>
+                                        </td>
+                                        <td class="px-3 py-4 whitespace-nowrap">
+                                            if userRole == "admin" || userRole == "editor" {
+                                                <form action={ templ.URL(fmt.Sprintf("/projects/%d/devices/%s/assign", lp.ID, device.DeviceID)) } method="POST" class="flex items-center space-x-2">
+                                                    <select name="course_name" class="block w-40 rounded-md border-gray-300 text-sm focus:border-black focus:ring-black">
+                                                        <option value="">-- 未割当 --</option>
+                                                        for _, course := range courses {
+                                                            if device.CourseName.Valid && device.CourseName.String == course {
+                                                                <option value={ course } selected>{ course }</option>
+                                                            } else {
+                                                                <option value={ course }>{ course }</option>
+                                                            }
+                                                        }
+                                                    </select>
+                                                    <button type="submit" class="text-xs text-indigo-600 hover:text-indigo-900">保存</button>
+                                                </form>
+                                            } else {
+                                                if device.CourseName.Valid && device.CourseName.String != "" {
+                                                    <span class="text-sm text-gray-900">{ device.CourseName.String }</span>
+                                                } else {
+                                                    <span class="text-sm text-gray-500">未割当</span>
+                                                }
+                                            }
+                                        </td>
+                                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            if device.LastSeenAt.Valid {
+                                                { device.LastSeenAt.Time.Format("01/02 15:04") }
+                                            } else {
+                                                -
+                                            }
+                                        </td>
+                                        if userRole == "admin" || userRole == "editor" {
+                                            <td class="px-3 py-4 whitespace-nowrap text-right text-sm">
+                                                <form action={ templ.URL(fmt.Sprintf("/projects/%d/devices/%s/delete", lp.ID, device.DeviceID)) } method="POST" onsubmit="return confirm('このデバイスを削除しますか？');" class="inline">
+                                                    <button type="submit" class="text-red-600 hover:text-red-900">削除</button>
+                                                </form>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                } else {
+                    <p class="text-sm text-gray-500">登録されているデバイスはありません。</p>
+                    <p class="text-xs text-gray-400 mt-1">モバイルアプリから POST /api/v1/devices を呼び出すと自動的に登録されます。</p>
                 }
             </div>
         </div>

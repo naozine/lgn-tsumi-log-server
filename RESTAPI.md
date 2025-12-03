@@ -8,6 +8,94 @@
 
 ---
 
+## デバイス登録 API
+
+**URL**: `POST /api/v1/devices`
+
+モバイルアプリの初回起動時にデバイスを登録するAPI。登録後、管理者がWeb UIでデバイスにコースを割り当てることで、位置情報・写真の送信が可能になります。
+
+### リクエスト仕様
+
+#### ヘッダー
+
+| ヘッダー名            | 値の例            | 必須 | 説明                                     |
+|---------------------|-------------------|------|------------------------------------------|
+| `X-Project-Api-Key` | `prj_sk_xxxxxxxx...` | ✓    | プロジェクト共通APIキー                      |
+
+#### リクエストボディ（JSON）
+
+```json
+{
+  "device_id": "ANDROID_abc123def456",
+  "device_name": "配送車両1号"
+}
+```
+
+#### フィールド説明
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `device_id` | string | ✓ | 端末を一意に識別するID（ANDROID_ID、IDFV等） |
+| `device_name` | string | - | 端末の表示名（省略時は管理画面で「名前なし」と表示） |
+
+### レスポンス仕様
+
+#### 成功時（HTTP 200）- 新規登録
+
+```json
+{
+  "success": true,
+  "device_id": "ANDROID_abc123def456",
+  "course_name": null,
+  "message": "Device registered successfully. Please wait for course assignment."
+}
+```
+
+#### 成功時（HTTP 200）- 既に登録済み（コース割当あり）
+
+```json
+{
+  "success": true,
+  "device_id": "ANDROID_abc123def456",
+  "course_name": "車両1",
+  "message": "Device already registered"
+}
+```
+
+#### レスポンスフィールド説明
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `success` | boolean | 処理結果（true: 成功） |
+| `device_id` | string | 登録されたデバイスID |
+| `course_name` | string/null | 割り当てられたコース名。未割当の場合はnull |
+| `message` | string | 結果メッセージ |
+
+### エラー時（HTTP 400/401/500）
+
+```json
+{
+  "success": false,
+  "error": "device_id is required"
+}
+```
+
+| HTTPステータス | エラーメッセージ | 原因 |
+|--------------|----------------|------|
+| 400 | `Invalid request format` | JSONフォーマットが不正 |
+| 400 | `device_id is required` | device_idが未指定 |
+| 401 | `API key is required` | `X-Project-Api-Key` ヘッダーが未指定 |
+| 401 | `Invalid API key` | 指定されたAPIキーが無効または存在しない |
+| 500 | `Failed to register device` | サーバー内部エラー |
+
+### 備考
+
+- 同じdevice_idで再度呼び出すと、既存のデバイス情報を返します（更新はしません）
+- コースの割り当ては管理者がWeb UIで行います
+- コース未割当のデバイスで位置情報・写真APIを呼び出すとエラーになります
+
+---
+
 ## 位置情報登録 API
 
 **URL**: `POST /api/v1/locations`
@@ -24,7 +112,7 @@
 
 ```json
 {
-  "course_name": "車両1のコース",
+  "device_id": "ANDROID_abc123def456",
   "locations": [
     {
       "latitude": 35.681236,
@@ -43,7 +131,7 @@
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `course_name` | string | ✓ | コース名（例: "車両1のコース"） |
+| `device_id` | string | ✓ | 端末を一意に識別するID（事前にデバイス登録APIで登録済みであること） |
 | `locations` | array | ✓ | 位置情報の配列（1件以上） |
 
 ### locations配列の各要素
@@ -88,11 +176,13 @@
 | HTTPステータス | エラーメッセージ | 原因 |
 |--------------|----------------|------|
 | 400 | `Invalid request format` | JSONフォーマットが不正 |
-| 400 | `course_name is required` | course_nameが未指定 |
+| 400 | `device_id is required` | device_idが未指定 |
 | 400 | `locations array cannot be empty` | locations配列が空 |
 | 400 | `No valid locations were recorded` | 全ての位置情報が不正 |
 | 401 | `API key is required` | `X-Project-Api-Key` ヘッダーが未指定 |
 | 401 | `Invalid API key` | 指定されたAPIキーが無効または存在しない |
+| 404 | `Device not registered` | device_idが未登録 |
+| 400 | `No course assigned to this device` | デバイスにコースが割り当てられていない |
 | 500 | `Internal server error` | サーバー内部エラー |
 
 ---
@@ -115,7 +205,7 @@
 
 ```json
 {
-  "course_name": "車両1",
+  "device_id": "ANDROID_abc123def456",
   "device_photo_id": "IMG_20251202_123456",
   "latitude": 35.681236,
   "longitude": 139.767125,
@@ -127,7 +217,7 @@
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `course_name` | string | ✓ | コース名（例: "車両1"） |
+| `device_id` | string | ✓ | 端末を一意に識別するID（事前にデバイス登録APIで登録済みであること） |
 | `device_photo_id` | string | ✓ | 端末に記録されている写真を特定するためのID |
 | `latitude` | float | ✓ | 写真を撮った位置の緯度（WGS84） |
 | `longitude` | float | ✓ | 写真を撮った位置の経度（WGS84） |
@@ -186,23 +276,25 @@
 | `longitude` | float | 停車地の経度 |
 | `distance_meters` | float | 写真撮影位置から停車地までの距離（メートル） |
 
-### エラー時（HTTP 400/401/500）
+### エラー時（HTTP 400/401/404/500）
 
 ```json
 {
   "success": false,
-  "error": "course_name is required"
+  "error": "device_id is required"
 }
 ```
 
 | HTTPステータス | エラーメッセージ | 原因 |
 |--------------|----------------|------|
 | 400 | `Invalid request format` | JSONフォーマットが不正 |
-| 400 | `course_name is required` | course_nameが未指定 |
+| 400 | `device_id is required` | device_idが未指定 |
 | 400 | `device_photo_id is required` | device_photo_idが未指定 |
 | 400 | `Invalid taken_at format...` | taken_atの形式が不正 |
 | 401 | `API key is required` | `X-Project-Api-Key` ヘッダーが未指定 |
 | 401 | `Invalid API key` | 指定されたAPIキーが無効または存在しない |
+| 404 | `Device not registered` | device_idが未登録 |
+| 400 | `No course assigned to this device` | デバイスにコースが割り当てられていない |
 | 500 | `Failed to retrieve route stops` | 停車地取得エラー |
 | 500 | `Failed to save photo metadata` | 写真メタデータ保存エラー |
 
@@ -294,3 +386,22 @@ curl -X POST http://localhost:8080/api/v1/photos/upload \
 - ファイルサイズ制限: なし（サーバー設定に依存）
 - 同じdevice_photo_idで再アップロードするとエラー（409 Conflict）になります
 - ファイルは `data/photos/{project_id}/{course_name}/{device_photo_id}.{ext}` に保存されます
+
+---
+
+## API利用フロー
+
+モバイルアプリからAPIを利用する一般的なフローは以下の通りです：
+
+```
+1. アプリ初回起動
+   └─> POST /api/v1/devices （デバイス登録）
+       └─> 管理者がWeb UIでコースを割り当てるまで待機
+
+2. コース割当後、位置情報の送信開始
+   └─> POST /api/v1/locations （定期的に送信）
+
+3. 荷物積込時に写真撮影
+   └─> POST /api/v1/photos （メタデータ登録）
+   └─> POST /api/v1/photos/upload （WiFi接続時に写真アップロード）
+```

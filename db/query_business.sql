@@ -107,3 +107,33 @@ ORDER BY taken_at;
 UPDATE photo_metadata
 SET photo_synced = 1
 WHERE id = ?;
+
+-- name: CreateDevice :one
+INSERT INTO devices (project_id, device_id, device_name)
+VALUES (?, ?, ?)
+RETURNING *;
+
+-- name: GetDeviceByDeviceID :one
+SELECT * FROM devices
+WHERE project_id = ? AND device_id = ?
+LIMIT 1;
+
+-- name: ListDevicesByProject :many
+SELECT * FROM devices
+WHERE project_id = ?
+ORDER BY created_at DESC;
+
+-- name: UpdateDeviceCourseName :one
+UPDATE devices
+SET course_name = ?, last_seen_at = CURRENT_TIMESTAMP
+WHERE project_id = ? AND device_id = ?
+RETURNING *;
+
+-- name: UpdateDeviceLastSeen :exec
+UPDATE devices
+SET last_seen_at = CURRENT_TIMESTAMP
+WHERE project_id = ? AND device_id = ?;
+
+-- name: DeleteDevice :exec
+DELETE FROM devices
+WHERE project_id = ? AND device_id = ?;
