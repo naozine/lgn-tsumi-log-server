@@ -69,11 +69,13 @@ ZOHO_CLIENT_SECRET=xxxxxxxxxxxxxxxx
 ZOHO_REFRESH_TOKEN=1000.xxxxxxxxxxxxxxxx
 
 # Zohoのデータセンター（省略時はUS）
+# 自分のデータセンターの確認方法は下記参照
 # US: https://accounts.zoho.com
 # EU: https://accounts.zoho.eu
 # IN: https://accounts.zoho.in
 # AU: https://accounts.zoho.com.au
 # CN: https://accounts.zoho.com.cn
+# JP: https://accounts.zoho.jp
 ZOHO_ACCOUNTS_URL=https://accounts.zoho.com
 
 # MDM API設定
@@ -82,6 +84,21 @@ MDM_API_BASE_URL=https://mdm.manageengine.com
 # キャッシュ設定（秒、省略時は300秒=5分）
 MDM_CACHE_TTL_SECONDS=300
 ```
+
+#### 自分のZohoデータセンターの確認方法
+
+以下のいずれかの方法で確認できます：
+
+1. **URLで確認**: Zohoにログイン後、ブラウザのURLを確認
+   - `accounts.zoho.com` → US
+   - `accounts.zoho.eu` → EU
+   - `accounts.zoho.in` → IN
+   - `accounts.zoho.jp` → JP
+   - `accounts.zoho.com.au` → AU
+
+2. **公式ツール**: [Know Your Datacenter](https://www.zoho.com/know-your-datacenter.html) で国ごとのデータセンターを確認
+
+3. **アカウント設定**: Zohoにログイン → 右上のアバター → 「My Account」でデータセンター情報を確認
 
 ### 4. 動作確認
 
