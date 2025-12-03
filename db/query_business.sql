@@ -47,10 +47,10 @@ SELECT * FROM route_stops WHERE id = ? LIMIT 1;
 
 -- name: CreateLocationLog :exec
 INSERT INTO location_logs (
-    project_id, course_name, latitude, longitude, timestamp,
+    project_id, course_name, device_id, latitude, longitude, timestamp,
     accuracy, speed, bearing, battery_level
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListLocationLogsByCourse :many
 SELECT * FROM location_logs

@@ -281,6 +281,7 @@ func (h *LocationHandler) CreateLocations(c echo.Context) error {
 		err = h.DB.CreateLocationLog(ctx, database.CreateLocationLogParams{
 			ProjectID:    project.ID,
 			CourseName:   courseName,
+			DeviceID:     sql.NullString{String: req.DeviceID, Valid: true},
 			Latitude:     loc.Latitude,
 			Longitude:    loc.Longitude,
 			Timestamp:    timestamp,

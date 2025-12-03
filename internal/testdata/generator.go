@@ -120,11 +120,12 @@ func (g *Generator) Generate(ctx context.Context, projectID int64, courseName st
 		allLogs = append(allLogs, stayLogs...)
 	}
 
-	// 4. DBに挿入
+	// 4. DBに挿入（testdataではdevice_idはnull）
 	for _, log := range allLogs {
 		err := g.DB.CreateLocationLog(ctx, database.CreateLocationLogParams{
 			ProjectID:    projectID,
 			CourseName:   courseName,
+			DeviceID:     sql.NullString{Valid: false},
 			Latitude:     log.Latitude,
 			Longitude:    log.Longitude,
 			Timestamp:    log.Timestamp,

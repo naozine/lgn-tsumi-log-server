@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS location_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL,
     course_name TEXT NOT NULL,
+    device_id TEXT,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     timestamp DATETIME NOT NULL,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS location_logs (
 
 CREATE INDEX IF NOT EXISTS idx_location_logs_project_course ON location_logs(project_id, course_name);
 CREATE INDEX IF NOT EXISTS idx_location_logs_timestamp ON location_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_location_logs_device_id ON location_logs(device_id);
 
 -- 写真メタデータ（実データは後で同期）
 CREATE TABLE IF NOT EXISTS photo_metadata (
