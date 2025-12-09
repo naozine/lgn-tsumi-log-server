@@ -255,25 +255,35 @@ docker-deploy: generate
 		--exclude '.bypass_emails' \
 		--exclude 'caddy/' \
 		./ $(VPS_USER)@$(VPS_HOST):$(VPS_DIR)/
-	# 3. 本番用 .env を転送（APP_NAME を追加）
+	# 3. 本番用 .env を転送（APP_NAME, SERVER_ADDR, WebAuthn設定を追加）
 	@if [ -f ".env.production" ]; then \
 		echo "APP_NAME=$(APP_NAME)" > /tmp/.env.deploy && \
+		echo "SERVER_ADDR=$(SERVER_ADDR)" >> /tmp/.env.deploy && \
+		echo "WEBAUTHN_RP_ID=$(PUBLIC_HOST)" >> /tmp/.env.deploy && \
+		echo "WEBAUTHN_ALLOWED_ORIGINS=$(SERVER_ADDR)" >> /tmp/.env.deploy && \
 		cat .env.production >> /tmp/.env.deploy && \
 		rsync -avz -e "ssh -p $(SSH_PORT)" /tmp/.env.deploy $(VPS_USER)@$(VPS_HOST):$(VPS_DIR)/.env && \
 		rm /tmp/.env.deploy; \
 	else \
-		echo "APP_NAME=$(APP_NAME)" | ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cat > $(VPS_DIR)/.env"; \
+		echo "APP_NAME=$(APP_NAME)\nSERVER_ADDR=$(SERVER_ADDR)\nWEBAUTHN_RP_ID=$(PUBLIC_HOST)\nWEBAUTHN_ALLOWED_ORIGINS=$(SERVER_ADDR)" | \
+		ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cat > $(VPS_DIR)/.env"; \
 	fi
-	# 4. VPS上でビルド・起動
-	@echo ">> Building and starting on VPS..."
+	# 4. VPS上でビルド
+	@echo ">> Building on VPS..."
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cd $(VPS_DIR) && \
-		docker compose build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE) && \
-		docker compose up -d"
-	# 5. Caddy 設定を追加
+		docker compose build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE)"
+	# 5. ボリュームの権限設定（nonroot ユーザー用）
+	@echo ">> Setting volume permissions..."
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "docker volume create $(APP_NAME)-db 2>/dev/null || true && \
+		docker run --rm -v $(APP_NAME)-db:/data alpine chmod 777 /data"
+	# 6. コンテナ起動
+	@echo ">> Starting container..."
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cd $(VPS_DIR) && docker compose up -d"
+	# 7. Caddy 設定を追加
 	@echo ">> Configuring Caddy for $(PUBLIC_HOST)..."
 	@echo '$(PUBLIC_HOST) {\n    reverse_proxy $(APP_NAME):8080\n}' | \
 		ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cat > $(CADDY_DIR)/sites/$(APP_NAME).caddy"
-	# 6. Caddy をリロード
+	# 8. Caddy をリロード
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "docker exec caddy caddy reload --config /etc/caddy/Caddyfile"
 	@echo ">> Docker deployment complete!"
 	@echo ">> Access: https://$(PUBLIC_HOST)"
