@@ -28,8 +28,8 @@ services:
     networks:
       - caddy-net
     volumes:
-      # SQLite データベースの永続化
-      - app-db:/app/data
+      # SQLite データベースの永続化（ホストディレクトリにバインド）
+      - ./data:/app/data
     environment:
       # DB パス（ボリューム内に配置）
       - DB_PATH=/app/data/app.db
@@ -63,7 +63,3 @@ services:
 networks:
   caddy-net:
     external: true
-
-volumes:
-  app-db:
-    name: ${APP_NAME:-project-crud-auth}-db

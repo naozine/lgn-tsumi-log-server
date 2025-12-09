@@ -8,7 +8,11 @@ BINARY_NAME ?= server
 BUILD_DIR   ?= bin
 CMD_PATH    ?= ./cmd/server
 # プロジェクトの go.mod に合わせる
-GO_VERSION  ?= 1.25
+GO_VERSION  ?= 1.25.0
+
+# VPS 上の Go 設定
+VPS_GO_ROOT  = /home/$(VPS_USER)/.go/go$(GO_VERSION)
+VPS_GO_BIN   = $(VPS_GO_ROOT)/bin/go
 
 # Version Info (git から自動取得)
 VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -48,7 +52,8 @@ SERVER_ADDR   ?= https://$(PUBLIC_HOST)
 # -----------------------------------------------------------------------------
 .PHONY: all build build-linux deploy sync restart logs clean generate \
         docker-build docker-push docker-up docker-down docker-logs docker-dev \
-        caddy-setup caddy-status docker-deploy docker-restart docker-remote-logs
+        caddy-setup caddy-status docker-deploy docker-restart docker-remote-logs \
+        vps-go-install vps-go-version
 
 all: build-linux
 
@@ -132,6 +137,28 @@ logs:
 
 clean:
 	rm -f $(BUILD_DIR)/$(BINARY_NAME)-linux
+
+# -----------------------------------------------------------------------------
+# VPS Go Management
+# -----------------------------------------------------------------------------
+
+# VPS に Go をインストール（指定バージョンがなければ）
+vps-go-install:
+	@echo ">> Checking Go $(GO_VERSION) on VPS..."
+	@ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "\
+		if [ -f $(VPS_GO_BIN) ]; then \
+			echo 'Go $(GO_VERSION) already installed'; \
+		else \
+			echo 'Installing Go $(GO_VERSION)...'; \
+			mkdir -p /home/$(VPS_USER)/.go && \
+			curl -fsSL https://go.dev/dl/go$(GO_VERSION).linux-amd64.tar.gz | tar -C /home/$(VPS_USER)/.go -xzf - && \
+			mv /home/$(VPS_USER)/.go/go $(VPS_GO_ROOT) && \
+			echo 'Go $(GO_VERSION) installed successfully'; \
+		fi"
+
+# VPS の Go バージョン確認
+vps-go-version:
+	@ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "$(VPS_GO_BIN) version 2>/dev/null || echo 'Go not installed at $(VPS_GO_BIN)'"
 
 # -----------------------------------------------------------------------------
 # Docker Targets
@@ -236,26 +263,28 @@ caddy-reload:
 # =============================================================================
 
 # Deploy to VPS using Docker
-# ソースを転送してVPS上でビルドするため、アーキテクチャの違いを気にしなくてよい
+# ホワイトリスト方式で必要なファイルのみ転送し、VPS上でGoビルド後にDockerイメージ化
 docker-deploy: generate
 	@echo ">> Deploying Docker to $(VPS_HOST) (build on VPS)..."
 	@echo ">> App: $(APP_NAME) -> $(PUBLIC_HOST)"
-	# 1. Caddy が起動しているか確認（なければセットアップ）
+	# 1. VPS に Go がインストールされているか確認（なければインストール）
+	@$(MAKE) vps-go-install
+	# 2. Caddy が起動しているか確認（なければセットアップ）
 	@ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "docker ps -q -f name=caddy" | grep -q . || $(MAKE) caddy-setup
-	# 2. ソースコードを転送
-	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)"
-	rsync -avz -e "ssh -p $(SSH_PORT)" \
-		--exclude '.git' \
-		--exclude '.idea' \
-		--exclude 'bin/' \
-		--exclude 'tmp/' \
-		--exclude '*.db*' \
-		--exclude '.env' \
-		--exclude 'deploy.config' \
-		--exclude '.bypass_emails' \
-		--exclude 'caddy/' \
+	# 3. ソースコードを転送（ホワイトリスト方式：必要なものだけ）
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)/web"
+	rsync -avz -e "ssh -p $(SSH_PORT)" --delete \
+		--include='go.mod' \
+		--include='go.sum' \
+		--include='Dockerfile' \
+		--include='docker-compose.yaml' \
+		--include='cmd/***' \
+		--include='internal/***' \
+		--include='db/***' \
+		--include='web/***' \
+		--exclude='*' \
 		./ $(VPS_USER)@$(VPS_HOST):$(VPS_DIR)/
-	# 3. 本番用 .env を転送（APP_NAME, SERVER_ADDR, WebAuthn設定を追加）
+	# 4. 本番用 .env を転送（APP_NAME, SERVER_ADDR, WebAuthn設定を追加）
 	@if [ -f ".env.production" ]; then \
 		echo "APP_NAME=$(APP_NAME)" > /tmp/.env.deploy && \
 		echo "SERVER_ADDR=$(SERVER_ADDR)" >> /tmp/.env.deploy && \
@@ -268,22 +297,28 @@ docker-deploy: generate
 		echo "APP_NAME=$(APP_NAME)\nSERVER_ADDR=$(SERVER_ADDR)\nWEBAUTHN_RP_ID=$(PUBLIC_HOST)\nWEBAUTHN_ALLOWED_ORIGINS=$(SERVER_ADDR)" | \
 		ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cat > $(VPS_DIR)/.env"; \
 	fi
-	# 4. VPS上でビルド
-	@echo ">> Building on VPS..."
+	# 5. VPS上で Go ビルド
+	@echo ">> Building Go binary on VPS..."
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cd $(VPS_DIR) && \
-		docker compose build --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg BUILD_DATE=$(BUILD_DATE)"
-	# 5. ボリュームの権限設定（nonroot ユーザー用）
-	@echo ">> Setting volume permissions..."
-	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "docker volume create $(APP_NAME)-db 2>/dev/null || true && \
-		docker run --rm -v $(APP_NAME)-db:/data alpine chmod 777 /data"
-	# 6. コンテナ起動
+		CGO_ENABLED=0 $(VPS_GO_BIN) build \
+			-ldflags \"-X 'github.com/naozine/project_crud_with_auth_tmpl/internal/version.Version=$(VERSION)' \
+			          -X 'github.com/naozine/project_crud_with_auth_tmpl/internal/version.Commit=$(COMMIT)' \
+			          -X 'github.com/naozine/project_crud_with_auth_tmpl/internal/version.BuildDate=$(BUILD_DATE)'\" \
+			-o server ./cmd/server"
+	# 6. Docker イメージをビルド（バイナリコピーのみなので高速）
+	@echo ">> Building Docker image..."
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cd $(VPS_DIR) && docker build -t $(APP_NAME):latest ."
+	# 7. データディレクトリの作成と権限設定（nonroot ユーザー用）
+	@echo ">> Setting data directory permissions..."
+	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "mkdir -p $(VPS_DIR)/data && chmod 777 $(VPS_DIR)/data"
+	# 8. コンテナ起動
 	@echo ">> Starting container..."
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cd $(VPS_DIR) && docker compose up -d"
-	# 7. Caddy 設定を追加
+	# 9. Caddy 設定を追加
 	@echo ">> Configuring Caddy for $(PUBLIC_HOST)..."
 	@echo '$(PUBLIC_HOST) {\n    reverse_proxy $(APP_NAME):8080\n}' | \
 		ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "cat > $(CADDY_DIR)/sites/$(APP_NAME).caddy"
-	# 8. Caddy をリロード
+	# 10. Caddy をリロード
 	ssh -p $(SSH_PORT) $(VPS_USER)@$(VPS_HOST) "docker exec caddy caddy reload --config /etc/caddy/Caddyfile"
 	@echo ">> Docker deployment complete!"
 	@echo ">> Access: https://$(PUBLIC_HOST)"
