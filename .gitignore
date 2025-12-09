@@ -7,6 +7,7 @@
 /dev_local
 *.log
 .env
+.env.*
 .DS_Store
 
 # SQLC Generated Code
