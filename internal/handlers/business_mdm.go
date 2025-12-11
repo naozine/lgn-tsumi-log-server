@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/mdm"
@@ -67,6 +68,43 @@ func (h *MDMHandler) ListMDMDevices(c echo.Context) error {
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
 	c.Response().WriteHeader(http.StatusOK)
 	return layouts.Base("MDMデバイス一覧", content).Render(ctx, c.Response().Writer)
+}
+
+// ShowMDMDevice はMDMデバイスの詳細を表示する
+func (h *MDMHandler) ShowMDMDevice(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// MDMが設定されていない場合
+	if h.MDM == nil || !h.MDM.IsConfigured() {
+		content := components.MDMNotConfigured()
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+		return layouts.Base("MDM管理", content).Render(ctx, c.Response().Writer)
+	}
+
+	// デバイスIDを取得
+	deviceIDStr := c.Param("id")
+	deviceID, err := strconv.ParseInt(deviceIDStr, 10, 64)
+	if err != nil {
+		content := components.MDMError("無効なデバイスIDです")
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+		c.Response().WriteHeader(http.StatusBadRequest)
+		return layouts.Base("MDMデバイス詳細", content).Render(ctx, c.Response().Writer)
+	}
+
+	// デバイス詳細を取得
+	device, err := h.MDM.GetDevice(ctx, deviceID)
+	if err != nil {
+		content := components.MDMError(err.Error())
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+		return layouts.Base("MDMデバイス詳細", content).Render(ctx, c.Response().Writer)
+	}
+
+	content := components.MDMDeviceDetail(device)
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
+	c.Response().WriteHeader(http.StatusOK)
+	return layouts.Base("MDMデバイス詳細", content).Render(ctx, c.Response().Writer)
 }
 
 // ListMDMApps はMDMに登録されたアプリ一覧を表示する

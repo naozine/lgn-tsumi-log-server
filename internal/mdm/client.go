@@ -98,6 +98,47 @@ func (c *Client) fetchDevices(ctx context.Context) ([]Device, error) {
 	return devicesResp.Devices, nil
 }
 
+// GetDevice は指定したデバイスの詳細情報を取得する
+func (c *Client) GetDevice(ctx context.Context, deviceID int64) (*Device, error) {
+	token, err := c.oauth.GetAccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	// summary=trueでプロファイル数やアプリ数も取得
+	endpoint := fmt.Sprintf("%s/api/v1/mdm/devices/%d?summary=true", c.baseURL, deviceID)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Zoho-oauthtoken %s", token))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch device: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var deviceResp DeviceResponse
+	if err := json.Unmarshal(body, &deviceResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &deviceResp.Device, nil
+}
+
 // ClearCache はキャッシュをクリアする
 func (c *Client) ClearCache() {
 	c.cache.Clear()
