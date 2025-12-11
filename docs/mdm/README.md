@@ -8,6 +8,7 @@ ManageEngine Mobile Device Manager Plus（MDM）と連携し、MDM管理下の�
 |------|------|-----|
 | MDM管理トップ | MDM機能のトップページ | `/mdm` |
 | デバイス一覧 | MDM管理下のデバイス一覧表示 | `/mdm/devices` |
+| アプリ一覧 | MDM登録アプリ一覧表示 | `/mdm/apps` |
 
 ### アクセス権限
 
@@ -31,20 +32,20 @@ ManageEngine Mobile Device Manager Plus（MDM）と連携し、MDM管理下の�
 
 1. Zoho API Consoleで作成したSelf Clientを開く
 2. 「Generate Code」タブを選択
-3. **Scope** に以下を入力：
-   ```
-   MDMOnDemand.MDMInventory.READ
-   ```
-4. 「Create」をクリックしてAuthorization Codeを取得
-5. 以下のcurlコマンドでRefresh Tokenを取得：
+3. **Scope** に使用する機能に応じたスコープを入力（下記参照）
+4. **Time Duration**: 10 Minutes
+5. 「Create」をクリックしてAuthorization Codeを取得（有効期限は数分なのですぐに次へ）
+6. 以下のcurlコマンドでRefresh Tokenを取得：
 
 ```bash
-curl -X POST "https://accounts.zoho.com/oauth/v2/token" \
+curl -X POST "https://accounts.zoho.jp/oauth/v2/token" \
   -d "code=取得したAuthorization Code" \
   -d "client_id=YOUR_CLIENT_ID" \
   -d "client_secret=YOUR_CLIENT_SECRET" \
   -d "grant_type=authorization_code"
 ```
+
+> **注意**: URLの `accounts.zoho.jp` は自分のデータセンターに合わせて変更してください。
 
 レスポンス例：
 ```json
@@ -57,6 +58,45 @@ curl -X POST "https://accounts.zoho.com/oauth/v2/token" \
 ```
 
 `refresh_token` の値を控えておきます。
+
+### OAuthスコープ一覧
+
+使用する機能に応じて、必要なスコープを指定します。複数指定する場合はカンマ区切りで入力します。
+
+#### スコープ一覧
+
+| カテゴリ | スコープ | 用途 |
+|---------|---------|------|
+| **インベントリ** | `MDMOnDemand.MDMInventory.READ` | デバイス一覧取得 |
+| | `MDMOnDemand.MDMInventory.CREATE` | デバイス登録 |
+| | `MDMOnDemand.MDMInventory.UPDATE` | デバイス情報更新 |
+| | `MDMOnDemand.MDMInventory.DELETE` | デバイス削除 |
+| | `MDMOnDemand.MDMInventory.ALL` | インベントリ操作すべて |
+| **デバイス管理** | `MDMOnDemand.MDMDeviceMgmt.READ` | アプリ・プロファイル一覧取得 |
+| | `MDMOnDemand.MDMDeviceMgmt.CREATE` | アプリ登録、プロファイル作成 |
+| | `MDMOnDemand.MDMDeviceMgmt.UPDATE` | プロファイル変更、アプリ配信、通知送信 |
+| | `MDMOnDemand.MDMDeviceMgmt.DELETE` | アプリ削除、プロファイル削除 |
+| | `MDMOnDemand.MDMDeviceMgmt.ALL` | デバイス管理操作すべて |
+| **ユーザー管理** | `MDMOnDemand.MDMUser.READ` | ユーザー一覧取得 |
+| | `MDMOnDemand.MDMUser.CREATE` | ユーザー作成 |
+| | `MDMOnDemand.MDMUser.UPDATE` | ユーザー更新 |
+| | `MDMOnDemand.MDMUser.DELETE` | ユーザー削除 |
+| | `MDMOnDemand.MDMUser.ALL` | ユーザー管理操作すべて |
+
+#### 推奨スコープ設定
+
+**読み取りのみ（デバイス・アプリ一覧表示）**:
+```
+MDMOnDemand.MDMInventory.READ,MDMOnDemand.MDMDeviceMgmt.READ
+```
+
+**全機能を使用する場合**:
+```
+MDMOnDemand.MDMInventory.ALL,MDMOnDemand.MDMDeviceMgmt.ALL,MDMOnDemand.MDMUser.ALL
+```
+
+> **ヒント**: 後から機能を追加する場合は、新しいスコープでRefresh Tokenを再取得する必要があります。
+> 最初から `.ALL` スコープを指定しておくと、再取得の手間を省けます。
 
 ### 3. 環境変数の設定
 
@@ -78,12 +118,24 @@ ZOHO_REFRESH_TOKEN=1000.xxxxxxxxxxxxxxxx
 # JP: https://accounts.zoho.jp
 ZOHO_ACCOUNTS_URL=https://accounts.zoho.com
 
-# MDM API設定
-MDM_API_BASE_URL=https://mdm.manageengine.com
+# MDM API設定（データセンターに合わせて変更）
+# US: https://mdm.manageengine.com
+# EU: https://mdm.manageengine.eu
+# JP: https://mdm.manageengine.jp
+# AU: https://mdm.manageengine.com.au
+# IN: https://mdm.manageengine.in
+# UK: https://mdm.manageengine.uk
+# CA: https://mdm.manageengine.ca
+# SA: https://mdm.manageengine.sa
+# CN: https://mdm.manageengine.cn
+MDM_API_BASE_URL=https://mdm.manageengine.jp
 
 # キャッシュ設定（秒、省略時は300秒=5分）
 MDM_CACHE_TTL_SECONDS=300
 ```
+
+> **重要**: `ZOHO_ACCOUNTS_URL` と `MDM_API_BASE_URL` は同じデータセンターを指定してください。
+> 異なるデータセンターを指定すると認証エラー（401）が発生します。
 
 #### 自分のZohoデータセンターの確認方法
 
@@ -160,3 +212,18 @@ Zoho API Consoleで正しい値を確認してください。
 1. MDMにデバイスが登録されているか確認
 2. 使用しているZohoアカウントにMDMへのアクセス権限があるか確認
 3. スコープ `MDMOnDemand.MDMInventory.READ` が正しく設定されているか確認
+
+### 「API error (status 401)」エラー
+
+認証に失敗しています。以下を確認してください：
+
+1. **データセンターの不一致**: `ZOHO_ACCOUNTS_URL` と `MDM_API_BASE_URL` が同じデータセンターを指しているか確認
+   - 例: JPの場合は両方とも `.jp` ドメイン
+2. **Refresh Tokenの再取得**: Refresh Tokenが無効になっている可能性があります。新しいスコープで再取得してください
+
+### アプリ一覧が表示されない
+
+スコープに `MDMOnDemand.MDMDeviceMgmt.READ` が含まれているか確認してください。
+デバイス一覧は表示されるがアプリ一覧が表示されない場合は、スコープ不足が原因です。
+
+新しいスコープを追加する場合は、Refresh Tokenを再取得する必要があります。
