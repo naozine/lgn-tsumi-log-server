@@ -4,22 +4,22 @@ import "time"
 
 // App はMDMに登録されたアプリ情報
 type App struct {
-	AppID         int64          `json:"app_id"`
+	AppID         int64          `json:"app_id,string"`
 	AppName       string         `json:"app_name"`
 	AppCategory   string         `json:"app_category"`
-	AppType       int            `json:"app_type"` // 0=無料, 1=有料, 2=エンタープライズ
+	AppType       int            `json:"app_type,string"` // 0=無料, 1=有料, 2=エンタープライズ
 	Version       string         `json:"version"`
-	PlatformType  int            `json:"platform_type"` // 1=iOS, 2=Android, 3=Windows
+	PlatformType  int            `json:"platform_type,string"` // 1=iOS, 2=Android, 3=Windows
 	Description   string         `json:"description"`
 	Icon          string         `json:"icon"`
-	AddedTime     int64          `json:"added_time"`
-	ModifiedTime  int64          `json:"modified_time"`
+	AddedTime     int64          `json:"added_time,string"`
+	ModifiedTime  int64          `json:"modified_time,string"`
 	ReleaseLabels []ReleaseLabel `json:"release_labels"`
 }
 
 // ReleaseLabel はアプリのリリースラベル（バージョン管理用）
 type ReleaseLabel struct {
-	ReleaseLabelID   int64  `json:"release_label_id"`
+	ReleaseLabelID   int64  `json:"release_label_id,string"`
 	ReleaseLabelName string `json:"release_label_name"`
 	Version          string `json:"version"`
 }

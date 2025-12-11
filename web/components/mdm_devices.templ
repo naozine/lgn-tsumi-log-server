@@ -6,6 +6,11 @@ import (
 	"github.com/naozine/project_crud_with_auth_tmpl/internal/mdm"
 )
 
+// goToDeviceDetail はデバイス詳細ページに遷移するJavaScript
+script goToDeviceDetail(deviceID int64) {
+	window.location.href = "/mdm/devices/" + deviceID;
+}
+
 // MDMDeviceList はMDMデバイス一覧を表示する
 templ MDMDeviceList(devices []mdm.Device, cachedAt time.Time) {
 	<div class="max-w-6xl mx-auto">
@@ -56,7 +61,7 @@ templ MDMDeviceList(devices []mdm.Device, cachedAt time.Time) {
 					</thead>
 					<tbody class="bg-white divide-y divide-gray-200">
 						for _, device := range devices {
-							<tr class="hover:bg-gray-50">
+							<tr class="hover:bg-gray-50 cursor-pointer" onclick={ goToDeviceDetail(device.DeviceID) }>
 								<td class="px-4 py-4 whitespace-nowrap">
 									<div class="flex items-center">
 										<span class="text-xl mr-2">{ device.PlatformIcon() }</span>
@@ -135,6 +140,17 @@ templ MDMTop() {
 					</div>
 				</div>
 			</a>
+			<a href="/mdm/api-explorer" class="block bg-white shadow sm:rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all">
+				<div class="px-4 py-5 sm:p-6">
+					<div class="flex items-center">
+						<span class="text-3xl mr-4">🔧</span>
+						<div>
+							<h3 class="text-lg font-medium text-gray-900">API Explorer</h3>
+							<p class="mt-1 text-sm text-gray-500">MDM APIをインタラクティブにテスト（開発者向け）</p>
+						</div>
+					</div>
+				</div>
+			</a>
 		</div>
 
 		<div class="mt-6">
@@ -176,6 +192,206 @@ templ MDMNotConfigured() {
 			<a href="/projects" class="text-sm font-medium text-gray-600 hover:text-gray-900">
 				← プロジェクト一覧に戻る
 			</a>
+		</div>
+	</div>
+}
+
+// MDMDeviceDetail はMDMデバイスの詳細を表示する
+templ MDMDeviceDetail(device *mdm.Device) {
+	<div class="max-w-4xl mx-auto">
+		<div class="mb-4">
+			<a href="/mdm/devices" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+				← デバイス一覧に戻る
+			</a>
+		</div>
+
+		<div class="mb-8">
+			<div class="flex items-center">
+				<span class="text-4xl mr-4">{ device.PlatformIcon() }</span>
+				<div>
+					<h2 class="text-2xl font-bold tracking-tight text-gray-900">{ device.DeviceName }</h2>
+					<p class="mt-1 text-sm text-gray-500">
+						{ device.Model } · { device.PlatformDisplayName() } { device.OSVersion }
+					</p>
+				</div>
+			</div>
+		</div>
+
+		<div class="grid gap-6 md:grid-cols-2">
+			<!-- 基本情報 -->
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+				<div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+					<h3 class="text-lg font-medium text-gray-900">基本情報</h3>
+				</div>
+				<dl class="divide-y divide-gray-200">
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">デバイス名</dt>
+						<dd class="text-sm text-gray-900">{ device.DeviceName }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">モデル</dt>
+						<dd class="text-sm text-gray-900">{ device.Model }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">プラットフォーム</dt>
+						<dd class="text-sm text-gray-900">{ device.PlatformDisplayName() }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">OSバージョン</dt>
+						<dd class="text-sm text-gray-900">{ device.OSVersion }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">管理状態</dt>
+						<dd class="text-sm text-gray-900">{ device.ManagedStatusString() }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">バッテリー</dt>
+						<dd class="text-sm text-gray-900">{ device.BatteryLevelString() }</dd>
+					</div>
+				</dl>
+			</div>
+
+			<!-- 識別情報 -->
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+				<div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+					<h3 class="text-lg font-medium text-gray-900">識別情報</h3>
+				</div>
+				<dl class="divide-y divide-gray-200">
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">シリアル番号</dt>
+						<dd class="text-sm font-mono text-gray-900">
+							if device.SerialNumber != "" {
+								{ device.SerialNumber }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">UDID</dt>
+						<dd class="text-sm font-mono text-gray-900 break-all">
+							if device.UDID != "" {
+								{ device.UDID }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">IMEI</dt>
+						<dd class="text-sm font-mono text-gray-900">{ device.IMEIString() }</dd>
+					</div>
+					<div class="px-4 py-3 sm:px-6 flex justify-between">
+						<dt class="text-sm font-medium text-gray-500">デバイスID</dt>
+						<dd class="text-sm font-mono text-gray-900">{ fmt.Sprintf("%d", device.DeviceID) }</dd>
+					</div>
+				</dl>
+			</div>
+
+			<!-- ユーザー情報 -->
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+				<div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+					<h3 class="text-lg font-medium text-gray-900">ユーザー情報</h3>
+				</div>
+				<dl class="divide-y divide-gray-200">
+					if device.User != nil {
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">ユーザー名</dt>
+							<dd class="text-sm text-gray-900">{ device.User.UserName }</dd>
+						</div>
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">メール</dt>
+							<dd class="text-sm text-gray-900">{ device.User.UserEmail }</dd>
+						</div>
+					} else {
+						<div class="px-4 py-3 sm:px-6">
+							<p class="text-sm text-gray-400">ユーザー情報なし</p>
+						</div>
+					}
+				</dl>
+			</div>
+
+			<!-- セキュリティ情報 -->
+			<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+				<div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+					<h3 class="text-lg font-medium text-gray-900">セキュリティ</h3>
+				</div>
+				<dl class="divide-y divide-gray-200">
+					if device.Security != nil {
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">パスコード</dt>
+							<dd class="text-sm">
+								if device.Security.HasPasscode() {
+									<span class="text-green-600">設定済み</span>
+								} else {
+									<span class="text-red-600">未設定</span>
+								}
+							</dd>
+						</div>
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">暗号化</dt>
+							<dd class="text-sm">
+								if device.Security.IsEncrypted() {
+									<span class="text-green-600">有効</span>
+								} else {
+									<span class="text-yellow-600">無効</span>
+								}
+							</dd>
+						</div>
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">Jailbreak/Root</dt>
+							<dd class="text-sm">
+								if device.Security.IsRooted() {
+									<span class="text-red-600">検出</span>
+								} else {
+									<span class="text-green-600">なし</span>
+								}
+							</dd>
+						</div>
+						<div class="px-4 py-3 sm:px-6 flex justify-between">
+							<dt class="text-sm font-medium text-gray-500">紛失モード</dt>
+							<dd class="text-sm">
+								if device.IsLostModeEnabled {
+									<span class="text-red-600">有効</span>
+								} else {
+									<span class="text-gray-600">無効</span>
+								}
+							</dd>
+						</div>
+					} else {
+						<div class="px-4 py-3 sm:px-6">
+							<p class="text-sm text-gray-400">セキュリティ情報なし</p>
+						</div>
+					}
+				</dl>
+			</div>
+
+			<!-- 概要情報 -->
+			if device.Summary != nil {
+				<div class="bg-white shadow sm:rounded-lg border border-gray-200 md:col-span-2">
+					<div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+						<h3 class="text-lg font-medium text-gray-900">登録情報</h3>
+					</div>
+					<div class="px-4 py-5 sm:px-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+						<div class="text-center">
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetProfileCount() }</p>
+							<p class="text-sm text-gray-500">プロファイル</p>
+						</div>
+						<div class="text-center">
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetAppCount() }</p>
+							<p class="text-sm text-gray-500">アプリ</p>
+						</div>
+						<div class="text-center">
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetDocCount() }</p>
+							<p class="text-sm text-gray-500">ドキュメント</p>
+						</div>
+						<div class="text-center">
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetGroupCount() }</p>
+							<p class="text-sm text-gray-500">グループ</p>
+						</div>
+					</div>
+				</div>
+			}
 		</div>
 	</div>
 }

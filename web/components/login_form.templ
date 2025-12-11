@@ -11,7 +11,8 @@ templ LoginForm(errorMessage string) {
             <div>
                 <label for="email" class="block text-sm font-medium leading-6 text-gray-900">メールアドレス</label>
                 <div class="mt-2">
-                    <input type="email" name="email" id="email" required 
+                    <input type="email" name="email" id="email" required
+                        autocomplete="username webauthn"
                         class="block w-full rounded-md border-0 py-2.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-black sm:text-sm sm:leading-6"
                         placeholder="test@example.com"
                     />
@@ -31,19 +32,5 @@ templ LoginForm(errorMessage string) {
             </button>
         </form>
 
-        <div class="relative flex py-5 items-center">
-            <div class="flex-grow border-t border-gray-300"></div>
-            <span class="flex-shrink-0 mx-4 text-gray-400 text-sm">または</span>
-            <div class="flex-grow border-t border-gray-300"></div>
-        </div>
-
-        <div class="space-y-3">
-            <button onclick="loginPasskey()" type="button" class="w-full rounded-md bg-white px-6 py-2.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 transition-colors">
-                パスキーでログイン (メール入力済)
-            </button>
-            <button onclick="loginDiscoverable()" type="button" class="w-full rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors">
-                端末認証でログイン (メール不要)
-            </button>
-        </div>
     </div>
 }
