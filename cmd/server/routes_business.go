@@ -69,4 +69,6 @@ func RegisterBusinessRoutes(e *echo.Echo, queries *database.Queries, ml *magicli
 	mdmGroup.GET("/devices", mdmHandler.ListMDMDevices)
 	mdmGroup.GET("/devices/:id", mdmHandler.ShowMDMDevice)
 	mdmGroup.GET("/apps", mdmHandler.ListMDMApps)
+	mdmGroup.GET("/api-explorer", mdmHandler.APIExplorer)
+	mdmGroup.POST("/api-explorer/execute", mdmHandler.APIExplorerExecute)
 }

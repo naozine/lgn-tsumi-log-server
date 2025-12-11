@@ -1,0 +1,285 @@
+package components
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/naozine/project_crud_with_auth_tmpl/internal/mdm"
+)
+
+// MDMAPIExplorer はAPI Explorerページを表示する
+templ MDMAPIExplorer(categories []string, endpointsByCategory map[string][]mdm.APIEndpoint, devices []mdm.Device, selectedEndpoint *mdm.APIEndpoint, response []byte, statusCode int) {
+	<div class="max-w-7xl mx-auto">
+		<div class="mb-4">
+			<a href="/mdm" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+				← MDM管理に戻る
+			</a>
+		</div>
+
+		<div class="mb-6">
+			<h2 class="text-2xl font-bold tracking-tight text-gray-900">MDM API Explorer</h2>
+			<p class="mt-1 text-sm text-gray-500">
+				ManageEngine MDM APIをインタラクティブにテストできます
+			</p>
+		</div>
+
+		<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+			<!-- 左サイドバー: API一覧 -->
+			<div class="lg:col-span-1">
+				<div class="bg-white shadow sm:rounded-lg border border-gray-200 sticky top-4">
+					<div class="px-4 py-3 border-b border-gray-200">
+						<h3 class="text-sm font-medium text-gray-900">API一覧</h3>
+					</div>
+					<nav class="p-2 max-h-[70vh] overflow-y-auto">
+						for _, category := range categories {
+							<div class="mb-3">
+								<h4 class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+									{ category }
+								</h4>
+								<ul class="space-y-1">
+									for _, ep := range endpointsByCategory[category] {
+										<li>
+											<a
+												href={ templ.SafeURL("/mdm/api-explorer?endpoint=" + ep.ID) }
+												class={ "block px-2 py-1.5 text-sm rounded-md transition-colors",
+													templ.KV("bg-blue-50 text-blue-700 font-medium", selectedEndpoint != nil && selectedEndpoint.ID == ep.ID),
+													templ.KV("text-gray-700 hover:bg-gray-100", selectedEndpoint == nil || selectedEndpoint.ID != ep.ID) }
+											>
+												<span class="text-xs font-mono text-gray-400 mr-1">{ ep.Method }</span>
+												{ ep.Name }
+											</a>
+										</li>
+									}
+								</ul>
+							</div>
+						}
+					</nav>
+				</div>
+			</div>
+
+			<!-- メインコンテンツ: API詳細と実行 -->
+			<div class="lg:col-span-3">
+				if selectedEndpoint != nil {
+					@APIEndpointDetail(selectedEndpoint, devices)
+				} else {
+					<div class="bg-white shadow sm:rounded-lg border border-gray-200 p-8 text-center">
+						<div class="text-gray-400 text-4xl mb-4">🔍</div>
+						<p class="text-gray-500">左のメニューからAPIを選択してください</p>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+// APIEndpointDetail はAPIエンドポイントの詳細と実行フォームを表示
+templ APIEndpointDetail(endpoint *mdm.APIEndpoint, devices []mdm.Device) {
+	<div class="space-y-6">
+		<!-- ヘッダー -->
+		<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+			<div class="px-4 py-5 sm:px-6">
+				<div class="flex items-center gap-3">
+					<span class={ "inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium",
+						templ.KV("bg-green-100 text-green-800", endpoint.Method == "GET"),
+						templ.KV("bg-blue-100 text-blue-800", endpoint.Method == "POST"),
+						templ.KV("bg-yellow-100 text-yellow-800", endpoint.Method == "PUT"),
+						templ.KV("bg-red-100 text-red-800", endpoint.Method == "DELETE") }>
+						{ endpoint.Method }
+					</span>
+					<h3 class="text-lg font-medium text-gray-900">{ endpoint.Name }</h3>
+				</div>
+				<p class="mt-2 text-sm text-gray-500">{ endpoint.Description }</p>
+				<p class="mt-2 font-mono text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
+					/api/v1/mdm{ endpoint.Path }
+				</p>
+			</div>
+		</div>
+
+		<!-- パラメータ入力フォーム -->
+		<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+			<div class="px-4 py-3 border-b border-gray-200">
+				<h4 class="text-sm font-medium text-gray-900">パラメータ</h4>
+			</div>
+			<div class="px-4 py-4">
+				<form id="api-form" class="space-y-4">
+					<input type="hidden" name="endpoint_id" value={ endpoint.ID }/>
+
+					<!-- デバイス選択（必要な場合） -->
+					if endpoint.RequiresDevice {
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">
+								デバイス <span class="text-red-500">*</span>
+							</label>
+							<select name="device_id" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm">
+								<option value="">選択してください</option>
+								for _, device := range devices {
+									<option value={ formatDeviceID(device.DeviceID) }>
+										{ device.DeviceName } ({ device.Model })
+									</option>
+								}
+							</select>
+						</div>
+					}
+
+					<!-- カスタムパラメータ（app_id, group_id, user_id など） -->
+					if needsCustomParam(endpoint.Path) {
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">
+								{ getCustomParamLabel(endpoint.Path) } <span class="text-red-500">*</span>
+							</label>
+							<input
+								type="text"
+								name="custom_param"
+								required
+								placeholder={ getCustomParamPlaceholder(endpoint.Path) }
+								class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+							/>
+						</div>
+					}
+
+					<!-- クエリパラメータ -->
+					for _, param := range endpoint.Params {
+						if param.Type == "query" {
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-1">
+									{ param.Name }
+									if param.Required {
+										<span class="text-red-500">*</span>
+									}
+								</label>
+								<input
+									type="text"
+									name={ param.Name }
+									value={ param.Default }
+									placeholder={ param.Description }
+									class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+								/>
+								<p class="mt-1 text-xs text-gray-500">{ param.Description }</p>
+							</div>
+						}
+					}
+
+					if !endpoint.RequiresDevice && !needsCustomParam(endpoint.Path) && len(endpoint.Params) == 0 {
+						<p class="text-sm text-gray-500">このエンドポイントにはパラメータがありません</p>
+					}
+
+					<div class="pt-4">
+						<button
+							type="button"
+							onclick="executeAPI()"
+							class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+						>
+							<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							実行
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<!-- レスポンス表示エリア -->
+		<div class="bg-white shadow sm:rounded-lg border border-gray-200">
+			<div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+				<h4 class="text-sm font-medium text-gray-900">レスポンス</h4>
+				<div id="response-status" class="text-sm"></div>
+			</div>
+			<div class="p-4">
+				<div id="response-info" class="mb-3 hidden">
+					<p class="font-mono text-xs text-gray-500">
+						<span id="response-method" class="font-semibold"></span>
+						<span id="response-path"></span>
+					</p>
+				</div>
+				<pre id="response-body" class="bg-gray-900 text-gray-100 rounded-lg p-4 overflow-x-auto text-sm font-mono max-h-[500px] overflow-y-auto">実行するとここにレスポンスが表示されます</pre>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		async function executeAPI() {
+			const form = document.getElementById('api-form');
+			const formData = new FormData(form);
+
+			const responseBody = document.getElementById('response-body');
+			const responseStatus = document.getElementById('response-status');
+			const responseInfo = document.getElementById('response-info');
+			const responseMethod = document.getElementById('response-method');
+			const responsePath = document.getElementById('response-path');
+
+			responseBody.textContent = '// 実行中...';
+			responseStatus.textContent = '';
+			responseInfo.classList.add('hidden');
+
+			try {
+				const response = await fetch('/mdm/api-explorer/execute', {
+					method: 'POST',
+					body: formData
+				});
+
+				const data = await response.json();
+
+				if (data.error) {
+					responseBody.innerHTML = '<span class="text-red-400">// エラー: ' + data.error + '</span>';
+					responseStatus.innerHTML = '<span class="text-red-600">エラー</span>';
+				} else {
+					responseBody.textContent = data.response;
+
+					const statusClass = data.status_code >= 200 && data.status_code < 300
+						? 'text-green-600'
+						: 'text-red-600';
+					responseStatus.innerHTML = '<span class="' + statusClass + '">HTTP ' + data.status_code + '</span>';
+
+					responseMethod.textContent = data.method;
+					responsePath.textContent = data.path;
+					responseInfo.classList.remove('hidden');
+				}
+			} catch (error) {
+				responseBody.innerHTML = '<span class="text-red-400">// リクエストエラー: ' + error.message + '</span>';
+				responseStatus.innerHTML = '<span class="text-red-600">エラー</span>';
+			}
+		}
+	</script>
+}
+
+// formatDeviceID はデバイスIDを文字列に変換
+func formatDeviceID(id int64) string {
+	return fmt.Sprintf("%d", id)
+}
+
+// needsCustomParam はカスタムパラメータが必要かどうかを判定
+func needsCustomParam(path string) bool {
+	return strings.Contains(path, "{app_id}") ||
+		strings.Contains(path, "{group_id}") ||
+		strings.Contains(path, "{user_id}")
+}
+
+// getCustomParamLabel はカスタムパラメータのラベルを取得
+func getCustomParamLabel(path string) string {
+	if strings.Contains(path, "{app_id}") {
+		return "アプリID"
+	}
+	if strings.Contains(path, "{group_id}") {
+		return "グループID"
+	}
+	if strings.Contains(path, "{user_id}") {
+		return "ユーザーID"
+	}
+	return "ID"
+}
+
+// getCustomParamPlaceholder はカスタムパラメータのプレースホルダーを取得
+func getCustomParamPlaceholder(path string) string {
+	if strings.Contains(path, "{app_id}") {
+		return "例: 2864000000058001"
+	}
+	if strings.Contains(path, "{group_id}") {
+		return "例: 2864000000058001"
+	}
+	if strings.Contains(path, "{user_id}") {
+		return "例: 2864000000058001"
+	}
+	return "IDを入力"
+}

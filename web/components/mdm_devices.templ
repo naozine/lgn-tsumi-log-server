@@ -140,6 +140,17 @@ templ MDMTop() {
 					</div>
 				</div>
 			</a>
+			<a href="/mdm/api-explorer" class="block bg-white shadow sm:rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all">
+				<div class="px-4 py-5 sm:p-6">
+					<div class="flex items-center">
+						<span class="text-3xl mr-4">🔧</span>
+						<div>
+							<h3 class="text-lg font-medium text-gray-900">API Explorer</h3>
+							<p class="mt-1 text-sm text-gray-500">MDM APIをインタラクティブにテスト（開発者向け）</p>
+						</div>
+					</div>
+				</div>
+			</a>
 		</div>
 
 		<div class="mt-6">
@@ -310,7 +321,7 @@ templ MDMDeviceDetail(device *mdm.Device) {
 						<div class="px-4 py-3 sm:px-6 flex justify-between">
 							<dt class="text-sm font-medium text-gray-500">パスコード</dt>
 							<dd class="text-sm">
-								if device.Security.Passcode {
+								if device.Security.HasPasscode() {
 									<span class="text-green-600">設定済み</span>
 								} else {
 									<span class="text-red-600">未設定</span>
@@ -320,7 +331,7 @@ templ MDMDeviceDetail(device *mdm.Device) {
 						<div class="px-4 py-3 sm:px-6 flex justify-between">
 							<dt class="text-sm font-medium text-gray-500">暗号化</dt>
 							<dd class="text-sm">
-								if device.Security.Encryption {
+								if device.Security.IsEncrypted() {
 									<span class="text-green-600">有効</span>
 								} else {
 									<span class="text-yellow-600">無効</span>
@@ -330,7 +341,7 @@ templ MDMDeviceDetail(device *mdm.Device) {
 						<div class="px-4 py-3 sm:px-6 flex justify-between">
 							<dt class="text-sm font-medium text-gray-500">Jailbreak/Root</dt>
 							<dd class="text-sm">
-								if device.Security.Jailbroken {
+								if device.Security.IsRooted() {
 									<span class="text-red-600">検出</span>
 								} else {
 									<span class="text-green-600">なし</span>
@@ -340,7 +351,7 @@ templ MDMDeviceDetail(device *mdm.Device) {
 						<div class="px-4 py-3 sm:px-6 flex justify-between">
 							<dt class="text-sm font-medium text-gray-500">紛失モード</dt>
 							<dd class="text-sm">
-								if device.Security.LostModeEnabled {
+								if device.IsLostModeEnabled {
 									<span class="text-red-600">有効</span>
 								} else {
 									<span class="text-gray-600">無効</span>
@@ -363,19 +374,19 @@ templ MDMDeviceDetail(device *mdm.Device) {
 					</div>
 					<div class="px-4 py-5 sm:px-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
 						<div class="text-center">
-							<p class="text-2xl font-bold text-gray-900">{ fmt.Sprintf("%d", device.Summary.ProfileCount) }</p>
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetProfileCount() }</p>
 							<p class="text-sm text-gray-500">プロファイル</p>
 						</div>
 						<div class="text-center">
-							<p class="text-2xl font-bold text-gray-900">{ fmt.Sprintf("%d", device.Summary.AppCount) }</p>
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetAppCount() }</p>
 							<p class="text-sm text-gray-500">アプリ</p>
 						</div>
 						<div class="text-center">
-							<p class="text-2xl font-bold text-gray-900">{ fmt.Sprintf("%d", device.Summary.DocCount) }</p>
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetDocCount() }</p>
 							<p class="text-sm text-gray-500">ドキュメント</p>
 						</div>
 						<div class="text-center">
-							<p class="text-2xl font-bold text-gray-900">{ fmt.Sprintf("%d", device.Summary.GroupCount) }</p>
+							<p class="text-2xl font-bold text-gray-900">{ device.Summary.GetGroupCount() }</p>
 							<p class="text-sm text-gray-500">グループ</p>
 						</div>
 					</div>

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -131,12 +132,55 @@ func (c *Client) GetDevice(ctx context.Context, deviceID int64) (*Device, error)
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var deviceResp DeviceResponse
-	if err := json.Unmarshal(body, &deviceResp); err != nil {
+	// APIは直接デバイスオブジェクトを返す（ラッパーなし）
+	var device Device
+	if err := json.Unmarshal(body, &device); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return &deviceResp.Device, nil
+	return &device, nil
+}
+
+// CallAPI は汎用的にMDM APIを呼び出す（API Explorer用）
+// pathは /devices, /devices/123/locations のような形式
+func (c *Client) CallAPI(ctx context.Context, method, path string, queryParams map[string]string) ([]byte, int, error) {
+	token, err := c.oauth.GetAccessToken()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	// エンドポイントを構築
+	endpoint := fmt.Sprintf("%s/api/v1/mdm%s", c.baseURL, path)
+
+	// クエリパラメータを追加
+	if len(queryParams) > 0 {
+		params := make([]string, 0, len(queryParams))
+		for k, v := range queryParams {
+			params = append(params, fmt.Sprintf("%s=%s", k, v))
+		}
+		endpoint += "?" + strings.Join(params, "&")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Zoho-oauthtoken %s", token))
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to call API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return body, resp.StatusCode, nil
 }
 
 // ClearCache はキャッシュをクリアする
